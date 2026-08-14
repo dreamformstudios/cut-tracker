@@ -37,6 +37,8 @@
     <button class="iconbtn" id="nextDay">›</button>
   </div>
 
+  <div id="weighPrompt"></div>
+
   <div class="card">
     <div class="hero">
       <div class="ring">
@@ -81,19 +83,40 @@
   <div id="meals"></div>
 
   <div class="card" style="margin-top:14px">
-    <h2>Exercise &amp; weight</h2>
-    <div class="grid2">
-      <div class="field"><label>Calories burned (exercise)</label>
-        <input id="burned" type="number" inputmode="numeric" placeholder="0"></div>
-      <div class="field"><label>Weigh-in (lbs)</label>
-        <input id="weight" type="number" inputmode="decimal" step="0.1" placeholder="—"></div>
-    </div>
+    <h2>Exercise</h2>
+    <div class="field"><label>Calories burned today</label>
+      <input id="burned" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="hint">Log only intentional exercise — everyday movement is already inside your base burn. If your watch shows "total calories," subtract your base burn (<span id="baseHint">0</span>) first.</div>
   </div>
 </section>
 
 <!-- ============ TRENDS ============ -->
 <section id="tab-trends" class="hide">
+  <div class="card">
+    <h2>This week vs last</h2>
+    <div id="weekly"></div>
+  </div>
+
+  <div class="card">
+    <h2>Last 14 days</h2>
+    <div style="overflow-x:auto"><table id="histTable"><tbody></tbody></table></div>
+    <div class="hint">Deficit = base burn + exercise − calories eaten.</div>
+  </div>
+</section>
+
+<!-- ============ WEIGHT ============ -->
+<section id="tab-weight" class="hide">
+
+  <div class="card">
+    <h2>Weigh in</h2>
+    <div class="row">
+      <div class="field" style="flex:1.3"><label>Date</label><input id="wDate" type="date"></div>
+      <div class="field"><label>Weight (lbs)</label><input id="wVal" type="number" inputmode="decimal" step="0.1" placeholder="—"></div>
+      <button class="btn" id="wSave" style="padding:11px 18px">Save</button>
+    </div>
+    <div class="hint">Weigh yourself at the same time each day — first thing in the morning, after the bathroom, before eating. Consistency matters far more than the exact number.</div>
+  </div>
+
   <div class="card">
     <h2>Progress</h2>
     <div class="grid3">
@@ -106,14 +129,9 @@
   </div>
 
   <div class="card">
-    <h2>Weight</h2>
+    <h2>Trend</h2>
     <svg class="chart" id="wChart" viewBox="0 0 700 190" preserveAspectRatio="none"></svg>
     <div class="hint" id="chartHint">No weigh-ins yet.</div>
-  </div>
-
-  <div class="card">
-    <h2>This week vs last</h2>
-    <div id="weekly"></div>
   </div>
 
   <div class="card">
@@ -126,10 +144,10 @@
   </div>
 
   <div class="card">
-    <h2>Last 14 days</h2>
-    <div style="overflow-x:auto"><table id="histTable"><tbody></tbody></table></div>
-    <div class="hint">Deficit = base burn + exercise − calories eaten.</div>
+    <h2>All weigh-ins <span id="wCount" style="color:var(--tx3);font-weight:400"></span></h2>
+    <div id="wHistory"></div>
   </div>
+
 </section>
 
 <!-- ============ SETTINGS ============ -->
@@ -216,6 +234,8 @@
     <svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg>Today</button>
   <button id="tabAdd">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add</button>
+  <button data-tab="weight">
+    <svg viewBox="0 0 24 24"><path d="M4 21V8a2 2 0 012-2h12a2 2 0 012 2v13z"/><circle cx="12" cy="12" r="3.2"/><path d="M9.5 6.2A3.2 3.2 0 0112 3a3.2 3.2 0 012.5 3.2"/></svg>Weight</button>
   <button data-tab="trends">
     <svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 3.5L21 5"/><path d="M21 5h-5m5 0v5"/></svg>Trends</button>
   <button data-tab="settings">

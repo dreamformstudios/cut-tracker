@@ -16,8 +16,11 @@ you hit your goal weight.
 - **Recents, favorites and saved meals.** The foods you eat constantly are one tap
   away. "Copy yesterday" duplicates a whole day. "Save as meal" turns a day into a
   reusable template.
-- **Weight trend and a real projection.** Once there are two weigh-ins a week apart it
-  stops trusting the plan and starts projecting from what is actually happening.
+- **A Weight tab** with its own weigh-in box, the full history of every weigh-in
+  (editable — fix a typo, backfill a day you missed, delete a bad reading), the trend
+  chart, and the projection. Today prompts you when you haven't weighed in yet.
+- **A real projection.** Once there are two weigh-ins a week apart it stops trusting
+  the plan and starts projecting from what is actually happening.
 - **Streaks and a weekly rollup** — this week's average intake, deficit and weight
   change against last week's, plus what your logged deficit *predicts* you should have
   lost. When those two disagree, the scale is right.

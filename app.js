@@ -229,10 +229,30 @@ function renderStreak(){
   $("streakDots").innerHTML = dots;
 }
 
+function renderWeighPrompt(){
+  const box = $("weighPrompt");
+  if(cur !== TODAY || day(TODAY).weight != null){ box.innerHTML=""; return; }
+  box.innerHTML =
+    '<div class="card tight" style="border-color:#254468;background:linear-gradient(135deg,#1b2a3a,#161b22)">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div style="flex:1"><b style="font-size:14px">Weigh in</b>'+
+          '<div style="font-size:12px;color:var(--tx3);margin-top:1px">No weight logged today</div></div>'+
+        '<input id="qWeight" type="number" inputmode="decimal" step="0.1" placeholder="lbs" style="width:92px;text-align:center">'+
+        '<button class="btn" id="qWeightSave">Save</button>'+
+      '</div></div>';
+  const commit = ()=>{
+    const v = parseFloat($("qWeight").value);
+    if(isNaN(v) || v<50 || v>1000){ toast("Enter a weight in pounds"); return; }
+    day(TODAY).weight = v; touchDay(TODAY); renderToday(); toast("Logged "+r1(v)+" lbs");
+  };
+  $("qWeightSave").onclick = commit;
+  $("qWeight").addEventListener("keydown", e=>{ if(e.key==="Enter") commit(); });
+}
+
 function renderToday(){
   renderDate();
   $("burned").value = day(cur).burned || "";
-  $("weight").value = day(cur).weight==null ? "" : day(cur).weight;
+  renderWeighPrompt();
   renderHero(); renderMacros(); renderMeals(); renderStreak();
 }
 
@@ -433,7 +453,9 @@ function saveDayAsMeal(){
 /* ============================================================
    RENDER — Trends
    ============================================================ */
-function renderTrends(){
+function renderTrends(){ renderWeekly(); renderHistory(); }
+
+function renderWeight(){
   const s=DB.settings, w=latestWeight();
   const lost=s.start-w, left=w-s.goal, span=s.start-s.goal;
   $("sNow").textContent  = r1(w);
@@ -443,9 +465,60 @@ function renderTrends(){
   $("progBar").style.width = pct+"%";
   $("progText").textContent = weighDays().length
     ? r0(pct)+"% of the way there — "+r1(Math.max(left,0))+" lbs to go."
-    : "Log a weigh-in on the Today tab to start tracking.";
+    : "Log your first weigh-in above to start tracking.";
+  if(!$("wDate").value) $("wDate").value = TODAY;
+  drawChart(); renderProjection(); renderWHistory();
+}
 
-  drawChart(); renderWeekly(); renderProjection(); renderHistory();
+/* ---- the full, editable weigh-in log ---- */
+let editingDate = null;
+function saveWeighIn(dateKey, value){
+  if(dateKey > TODAY){ toast("That date hasn't happened yet"); return false; }
+  if(isNaN(value) || value<50 || value>1000){ toast("Enter a weight in pounds"); return false; }
+  day(dateKey).weight = value; touchDay(dateKey);
+  renderWeight(); renderToday();
+  return true;
+}
+function renderWHistory(){
+  const wd = weighDays().slice().reverse();
+  $("wCount").textContent = wd.length ? "("+wd.length+")" : "";
+  if(!wd.length){ $("wHistory").innerHTML='<div class="empty">No weigh-ins yet. Add one above.</div>'; return; }
+  $("wHistory").innerHTML = wd.map((k,i)=>{
+    const wv = DB.days[k].weight;
+    const prev = wd[i+1] ? DB.days[wd[i+1]].weight : null;
+    const dif = prev==null ? null : wv-prev;
+    const difTxt = dif==null ? '<span style="color:var(--tx3)">first weigh-in</span>'
+      : Math.abs(dif)<0.05 ? '<span style="color:var(--tx3)">no change</span> from previous'
+      : '<span class="'+(dif<0?"good":"bad")+'">'+(dif<0?"−":"+")+r1(Math.abs(dif))+'</span> from previous';
+    if(editingDate===k){
+      return '<div class="entry"><div class="info"><div class="n">'+
+        parseYmd(k).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})+'</div></div>'+
+        '<input type="number" inputmode="decimal" step="0.1" value="'+wv+'" data-edit="'+k+'" style="width:88px;text-align:center">'+
+        '<button class="btn sm" data-ok="'+k+'">Save</button>'+
+        '<button class="del" data-cancel="1">×</button></div>';
+    }
+    return '<div class="entry"><div class="info">'+
+      '<div class="n">'+parseYmd(k).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})+
+        (k===TODAY?' <span style="color:var(--accent);font-size:11px">today</span>':'')+'</div>'+
+      '<div class="m">'+difTxt+'</div></div>'+
+      '<div class="cal">'+r1(wv)+'</div>'+
+      '<button class="star" data-pencil="'+k+'" title="Edit">✎</button>'+
+      '<button class="del" data-drop="'+k+'" title="Delete">×</button></div>';
+  }).join("");
+
+  const box = $("wHistory");
+  box.querySelectorAll("[data-pencil]").forEach(b=>b.onclick=()=>{ editingDate=b.dataset.pencil; renderWHistory(); });
+  box.querySelectorAll("[data-cancel]").forEach(b=>b.onclick=()=>{ editingDate=null; renderWHistory(); });
+  box.querySelectorAll("[data-ok]").forEach(b=>b.onclick=()=>{
+    const k=b.dataset.ok, v=parseFloat(box.querySelector('[data-edit="'+k+'"]').value);
+    if(saveWeighIn(k,v)){ editingDate=null; renderWHistory(); toast("Updated"); }
+  });
+  box.querySelectorAll("[data-drop]").forEach(b=>b.onclick=()=>{
+    const k=b.dataset.drop;
+    if(b.dataset.armed){ day(k).weight=null; touchDay(k); renderWeight(); renderToday(); toast("Weigh-in deleted"); return; }
+    b.dataset.armed="1"; b.textContent="✓"; b.style.color="var(--warn)"; b.title="Tap again to delete";
+    setTimeout(()=>{ if(b.isConnected){ delete b.dataset.armed; b.textContent="×"; b.style.color=""; } },3000);
+  });
 }
 
 function windowStats(startOffset, len){
@@ -504,7 +577,7 @@ function renderProjection(){
       + "Your plan is "+s.pace+" lb/wk ("+r0(dailyDeficit())+" cal/day).";
   } else {
     $("pDate").textContent="—"; $("pRate").textContent="—";
-    $("pText").textContent="Log a few days of food and two weigh-ins about a week apart, and a projection appears here.";
+    $("pText").textContent="Add two weigh-ins about a week apart and a projection appears here.";
   }
 }
 
@@ -629,7 +702,7 @@ async function doSync(quiet){
   syncing = true; setSync("busy","Syncing");
   try{
     /* ---- days ---- */
-    const remote = await sbRest("days?select=date,data,updated") || [];
+    const remote = await sbRest("cut_days?select=date,data,updated") || [];
     const rmap = new Map(remote.map(r=>[r.date, r]));
     // remote wins where it is newer
     rmap.forEach((r,k)=>{
@@ -649,14 +722,14 @@ async function doSync(quiet){
       }
     });
     for(let i=0;i<push.length;i+=100){
-      await sbRest("days?on_conflict=user_id,date", {
+      await sbRest("cut_days?on_conflict=user_id,date", {
         method:"POST", headers:{ "Prefer":"resolution=merge-duplicates,return=minimal" },
         body:push.slice(i,i+100)
       });
     }
 
     /* ---- profile (settings, custom foods, favorites, saved meals) ---- */
-    const prof = (await sbRest("profile?select=data,updated&limit=1")) || [];
+    const prof = (await sbRest("cut_profile?select=data,updated&limit=1")) || [];
     const pr = prof[0];
     if(pr && (pr.updated||0) > (DB.meta.pupdated||0)){
       DB.settings = Object.assign({}, DEFAULTS.settings, pr.data.settings||{});
@@ -665,7 +738,7 @@ async function doSync(quiet){
     } else if(!pr || (DB.meta.pupdated||0) > (pr.updated||0)){
       // no row on the server yet (first sign-in) — upload what this device has
       if(!DB.meta.pupdated) DB.meta.pupdated = now();
-      await sbRest("profile?on_conflict=user_id", {
+      await sbRest("cut_profile?on_conflict=user_id", {
         method:"POST", headers:{ "Prefer":"resolution=merge-duplicates,return=minimal" },
         body:[{ user_id:AUTH.user_id, updated:DB.meta.pupdated,
           data:{ settings:DB.settings, custom:DB.custom, favs:DB.favs, meals:DB.meals } }]
@@ -675,6 +748,7 @@ async function doSync(quiet){
     DB.meta.lastSync = now(); save();
     setSync("ok","Synced");
     renderToday(); renderChips();
+    if(!$("tab-weight").classList.contains("hide")) renderWeight();
     if(!$("tab-trends").classList.contains("hide")) renderTrends();
     if(!$("tab-settings").classList.contains("hide")) fillSettings();
   }catch(err){
@@ -909,8 +983,9 @@ function iosTip(){
    ============================================================ */
 function switchTab(name){
   document.querySelectorAll(".tabbar button[data-tab]").forEach(x=>x.classList.toggle("on", x.dataset.tab===name));
-  ["today","trends","settings"].forEach(t=>$("tab-"+t).classList.toggle("hide", t!==name));
-  if(name==="trends") renderTrends();
+  ["today","weight","trends","settings"].forEach(t=>$("tab-"+t).classList.toggle("hide", t!==name));
+  if(name==="weight")   renderWeight();
+  if(name==="trends")   renderTrends();
   if(name==="settings") fillSettings();
   window.scrollTo(0,0);
 }
@@ -952,10 +1027,13 @@ $("cAdd").onclick = ()=>{
 $("burned").addEventListener("input", e=>{
   day(cur).burned = parseFloat(e.target.value)||0; touchDay(cur); renderHero(); renderMacros();
 });
-$("weight").addEventListener("input", e=>{
-  const v=parseFloat(e.target.value);
-  day(cur).weight = isNaN(v)?null:v; touchDay(cur); renderHero(); renderMacros(); renderStreak();
-});
+$("wSave").onclick = ()=>{
+  const k = $("wDate").value || TODAY;
+  if(saveWeighIn(k, parseFloat($("wVal").value))){
+    $("wVal").value=""; toast("Saved for "+parseYmd(k).toLocaleDateString(undefined,{month:"short",day:"numeric"}));
+  }
+};
+$("wVal").addEventListener("keydown", e=>{ if(e.key==="Enter") $("wSave").click(); });
 
 const SETMAP={sSex:"sex",sAge:"age",sAct:"act",sStart:"start",sGoal:"goal",sPace:"pace",sProt:"protPerLb",sFat:"fatPct"};
 Object.keys(SETMAP).forEach(id=>$(id).addEventListener("change",()=>{
@@ -1007,7 +1085,7 @@ setInterval(checkReminder, 60000);
 setTimeout(checkReminder, 4000);
 
 // expose a couple of internals for the test harness
-window.__cut = { get DB(){return DB;}, save:save, renderToday:renderToday, renderTrends:renderTrends,
+window.__cut = { get DB(){return DB;}, save:save, renderToday:renderToday, renderTrends:renderTrends, renderWeight:renderWeight,
                  fillSettings:fillSettings, switchTab:switchTab, openSheet:openSheet, streak:streak,
                  macroTargets:macroTargets, baseBurn:baseBurn, deficitOn:deficitOn };
 })();

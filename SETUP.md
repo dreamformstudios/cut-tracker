@@ -64,8 +64,9 @@ This is what lets you log lunch on your phone and see it on your Mac.
 
 3. In the left sidebar click **SQL Editor** → **New query**. Open the file
    `supabase-schema.sql`, copy the whole thing, paste it in, and click **Run**.
-   You should see "Success. No rows returned." That created your two tables and
-   locked them down so only you can read your own rows.
+   You should see "Success. No rows returned." That created two tables — `cut_days` and
+   `cut_profile` — and locked them down so only you can read your own rows. They are
+   prefixed so they can live safely alongside anything else in the same project.
 
 4. **Turn off email confirmation** so you can sign in immediately.
    In the left sidebar: **Authentication** → **Sign In / Providers** → **Email**.
