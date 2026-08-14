@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Cut Tracker</title>
+<meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cut">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <div style="min-width:0">
+    <h1>Cut Tracker</h1>
+    <div class="sub" id="hdrSub">—</div>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center">
+    <button class="syncpill off" id="syncPill"><span class="d"></span><span id="syncTxt">Offline</span></button>
+  </div>
+</header>
+
+<div id="banners"></div>
+
+<!-- ============ TODAY ============ -->
+<section id="tab-today">
+  <div class="datenav">
+    <button class="iconbtn" id="prevDay">‹</button>
+    <div class="d" id="dateLabel">—<small id="dateRel"></small></div>
+    <button class="iconbtn" id="nextDay">›</button>
+  </div>
+
+  <div class="card">
+    <div class="hero">
+      <div class="ring">
+        <svg width="132" height="132" viewBox="0 0 132 132">
+          <circle cx="66" cy="66" r="56" fill="none" stroke="#1c232c" stroke-width="13"/>
+          <circle id="ringArc" cx="66" cy="66" r="56" fill="none" stroke="#4ade80" stroke-width="13"
+                  stroke-linecap="round" stroke-dasharray="351.86" stroke-dashoffset="351.86"/>
+        </svg>
+        <div class="mid">
+          <div class="big" id="ringNum">0</div>
+          <div class="lbl" id="ringLbl">cal left</div>
+        </div>
+      </div>
+      <div class="eq">
+        <div class="eqrow"><span>Base burn</span><b id="eBase">0</b></div>
+        <div class="eqrow"><span>Exercise</span><b id="eEx">0</b></div>
+        <div class="eqrow"><span>Target deficit</span><b id="eDef">0</b></div>
+        <div class="eqrow tot" id="eTargetRow"><span>Budget today</span><b id="eTarget">0</b></div>
+        <div class="eqrow"><span>Eaten</span><b id="eAte">0</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card"><h2>Macros</h2><div id="macros"></div></div>
+
+  <div class="card tight">
+    <div class="streak">
+      <div class="num" id="streakNum">0</div>
+      <div class="txt">
+        <div id="streakTxt">Log any food today to start a streak.</div>
+        <div class="dots" id="streakDots"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="padding:0 2px">Food
+    <span style="display:flex;gap:12px">
+      <span class="act" id="copyYest">Copy yesterday</span>
+      <span class="act" id="saveMeal">Save as meal</span>
+    </span>
+  </h2>
+  <div id="meals"></div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>Exercise &amp; weight</h2>
+    <div class="grid2">
+      <div class="field"><label>Calories burned (exercise)</label>
+        <input id="burned" type="number" inputmode="numeric" placeholder="0"></div>
+      <div class="field"><label>Weigh-in (lbs)</label>
+        <input id="weight" type="number" inputmode="decimal" step="0.1" placeholder="—"></div>
+    </div>
+    <div class="hint">Log only intentional exercise — everyday movement is already inside your base burn. If your watch shows "total calories," subtract your base burn (<span id="baseHint">0</span>) first.</div>
+  </div>
+</section>
+
+<!-- ============ TRENDS ============ -->
+<section id="tab-trends" class="hide">
+  <div class="card">
+    <h2>Progress</h2>
+    <div class="grid3">
+      <div class="stat"><div class="v" id="sNow">—</div><div class="k">Current</div></div>
+      <div class="stat"><div class="v" id="sLost">—</div><div class="k">Lost</div></div>
+      <div class="stat"><div class="v" id="sLeft">—</div><div class="k">To go</div></div>
+    </div>
+    <div class="bar" style="height:10px;margin-top:12px"><i id="progBar" style="width:0%;background:linear-gradient(90deg,#22c55e,#4ade80)"></i></div>
+    <div class="hint" id="progText">Log a weigh-in to start tracking.</div>
+  </div>
+
+  <div class="card">
+    <h2>Weight</h2>
+    <svg class="chart" id="wChart" viewBox="0 0 700 190" preserveAspectRatio="none"></svg>
+    <div class="hint" id="chartHint">No weigh-ins yet.</div>
+  </div>
+
+  <div class="card">
+    <h2>This week vs last</h2>
+    <div id="weekly"></div>
+  </div>
+
+  <div class="card">
+    <h2>Projection to goal</h2>
+    <div class="grid2">
+      <div class="stat"><div class="v" id="pDate">—</div><div class="k">Est. arrival</div></div>
+      <div class="stat"><div class="v" id="pRate">—</div><div class="k">Actual rate</div></div>
+    </div>
+    <div class="hint" id="pText"></div>
+  </div>
+
+  <div class="card">
+    <h2>Last 14 days</h2>
+    <div style="overflow-x:auto"><table id="histTable"><tbody></tbody></table></div>
+    <div class="hint">Deficit = base burn + exercise − calories eaten.</div>
+  </div>
+</section>
+
+<!-- ============ SETTINGS ============ -->
+<section id="tab-settings" class="hide">
+
+  <div class="card">
+    <h2>Account &amp; sync</h2>
+    <div id="authBox"></div>
+  </div>
+
+  <div class="card">
+    <h2>About you</h2>
+    <div class="grid2">
+      <div class="field"><label>Sex</label>
+        <select id="sSex"><option value="m">Male</option><option value="f">Female</option></select></div>
+      <div class="field"><label>Age</label><input id="sAge" type="number" inputmode="numeric"></div>
+    </div>
+    <div class="grid2" style="margin-top:10px">
+      <div class="field"><label>Height (ft)</label><input id="sFt" type="number" inputmode="numeric"></div>
+      <div class="field"><label>Height (in)</label><input id="sIn" type="number" inputmode="numeric"></div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>Daily activity (excluding logged workouts)</label>
+      <select id="sAct">
+        <option value="1.2">Desk job, mostly sitting</option>
+        <option value="1.3">On my feet some of the day</option>
+        <option value="1.45">Physically active job</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Goal</h2>
+    <div class="grid2">
+      <div class="field"><label>Starting weight (lbs)</label><input id="sStart" type="number" inputmode="decimal" step="0.1"></div>
+      <div class="field"><label>Goal weight (lbs)</label><input id="sGoal" type="number" inputmode="decimal" step="0.1"></div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>Rate of loss</label>
+      <select id="sPace">
+        <option value="0.5">0.5 lb / week — very gradual</option>
+        <option value="1">1 lb / week — sustainable</option>
+        <option value="1.5">1.5 lb / week — brisk</option>
+        <option value="2">2 lb / week — aggressive</option>
+      </select>
+    </div>
+    <div class="grid2" style="margin-top:10px">
+      <div class="field"><label>Protein (g per lb of goal)</label>
+        <select id="sProt"><option value="0.8">0.8 g/lb</option><option value="1">1.0 g/lb</option><option value="1.2">1.2 g/lb</option></select></div>
+      <div class="field"><label>Fat (% of calories)</label>
+        <select id="sFat"><option value="0.2">20%</option><option value="0.25">25%</option><option value="0.3">30%</option><option value="0.35">35%</option></select></div>
+    </div>
+  </div>
+
+  <div class="card"><h2>Your numbers</h2><div id="calcOut"></div><div class="hint" id="floorWarn"></div></div>
+
+  <div class="card">
+    <h2>Reminders</h2>
+    <div id="remindBox"></div>
+  </div>
+
+  <div class="card"><h2>Saved meals</h2><div id="savedMeals"></div></div>
+  <div class="card"><h2>My foods</h2><div id="myFoods"></div></div>
+
+  <div class="card">
+    <h2>Data</h2>
+    <div class="grid2">
+      <button class="btn ghost" id="btnExport">Download backup</button>
+      <button class="btn ghost" id="btnImport">Restore backup</button>
+    </div>
+    <div class="hint" id="storageNote"></div>
+    <button class="btn ghost wide" id="btnReset" style="margin-top:10px;color:var(--warn)">Erase all data</button>
+  </div>
+
+  <div class="card">
+    <h2>Setup status</h2>
+    <div id="setupStatus"></div>
+  </div>
+</section>
+
+</div><!-- /wrap -->
+
+<!-- ============ BOTTOM TABS ============ -->
+<nav class="tabbar"><div class="inner">
+  <button data-tab="today" class="on">
+    <svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg>Today</button>
+  <button id="tabAdd">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add</button>
+  <button data-tab="trends">
+    <svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 3.5L21 5"/><path d="M21 5h-5m5 0v5"/></svg>Trends</button>
+  <button data-tab="settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-1.8-.3 1.6 1.6 0 00-1 1.5V21a2 2 0 11-4 0v-.1A1.6 1.6 0 008 19.4a1.6 1.6 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00.3-1.8 1.6 1.6 0 00-1.5-1H2a2 2 0 110-4h.1A1.6 1.6 0 004.6 8a1.6 1.6 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3H9a1.6 1.6 0 001-1.5V2a2 2 0 114 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8V9a1.6 1.6 0 001.5 1H22a2 2 0 110 4h-.1a1.6 1.6 0 00-1.5 1z"/></svg>Settings</button>
+</div></nav>
+
+<!-- ============ ADD-FOOD SHEET ============ -->
+<div class="sheet" id="addSheet"><div class="panel">
+  <div class="grab"></div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+    <select id="mealPick" style="flex:1">
+      <option value="breakfast">Breakfast</option><option value="lunch">Lunch</option>
+      <option value="dinner">Dinner</option><option value="snack">Snacks</option>
+    </select>
+    <button class="iconbtn" id="closeSheet">✕</button>
+  </div>
+
+  <input id="search" placeholder="Search foods…" autocomplete="off" enterkeyhint="search">
+  <div class="srcbar">
+    <span class="srclbl">Built-in</span>
+    <span class="srclbl usda" id="usdaLbl">USDA</span>
+    <span id="searchStatus" style="margin-left:auto"></span>
+  </div>
+  <div class="results" id="results"></div>
+
+  <div id="quickPanels">
+    <h2 style="margin:16px 0 8px">Favorites</h2>
+    <div class="chips" id="favChips"></div>
+    <h2 style="margin:16px 0 8px">Recent</h2>
+    <div class="chips" id="recentChips"></div>
+    <h2 style="margin:16px 0 8px">Saved meals</h2>
+    <div class="chips" id="mealChips"></div>
+
+    <div class="grid2" style="margin-top:18px">
+      <button class="btn ghost" id="showQuick">Quick add</button>
+      <button class="btn ghost" id="showCustom">New custom food</button>
+    </div>
+
+    <div id="quickForm" class="hide" style="margin-top:12px">
+      <div class="row">
+        <div class="field" style="flex:2"><label>Name</label><input id="qName" placeholder="Mom's lasagna"></div>
+        <div class="field"><label>Calories</label><input id="qCal" type="number" inputmode="decimal"></div>
+      </div>
+      <div class="grid3" style="margin-top:10px">
+        <div class="field"><label>Protein g</label><input id="qP" type="number" inputmode="decimal"></div>
+        <div class="field"><label>Carbs g</label><input id="qC" type="number" inputmode="decimal"></div>
+        <div class="field"><label>Fat g</label><input id="qF" type="number" inputmode="decimal"></div>
+      </div>
+      <button class="btn wide" id="qAdd" style="margin-top:10px">Add</button>
+    </div>
+
+    <div id="customForm" class="hide" style="margin-top:12px">
+      <div class="row">
+        <div class="field" style="flex:2"><label>Food name</label><input id="cName"></div>
+        <div class="field"><label>Serving</label><input id="cServ" placeholder="1 shake"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div class="field"><label>Calories</label><input id="cCal" type="number" inputmode="decimal"></div>
+        <div class="field"><label>Protein g</label><input id="cP" type="number" inputmode="decimal"></div>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div class="field"><label>Carbs g</label><input id="cC" type="number" inputmode="decimal"></div>
+        <div class="field"><label>Fat g</label><input id="cF" type="number" inputmode="decimal"></div>
+      </div>
+      <button class="btn wide" id="cAdd" style="margin-top:10px">Save to my foods</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="fileIn" accept=".json,application/json" style="display:none">
+
+<script src="./config.js"></script>
+<script src="./foods.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
