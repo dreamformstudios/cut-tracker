@@ -109,6 +109,11 @@
   </div>
 
   <div class="card">
+    <h2>Your own sessions</h2>
+    <div id="myCustom"></div>
+  </div>
+
+  <div class="card">
     <h2>Workout history</h2>
     <div id="workoutHistory"></div>
   </div>
@@ -379,6 +384,17 @@
     </div>
   </div>
 </div>
+
+
+<!-- ============ PICKER SHEET ============ -->
+<div class="sheet" id="pickSheet"><div class="panel">
+  <div class="grab"></div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+    <div id="pickTitle" style="flex:1;font-size:17px;font-weight:700;letter-spacing:-.02em"></div>
+    <button class="iconbtn" id="closePick">✕</button>
+  </div>
+  <div id="pickBody"></div>
+</div></div>
 
 <div class="toast" id="toast"></div>
 <input type="file" id="fileIn" accept=".json,application/json" style="display:none">

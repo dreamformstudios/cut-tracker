@@ -35,7 +35,7 @@ function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){ memOnly=true; } 
 const DEFAULTS = {
   settings:{ sex:"m", age:35, heightIn:70, act:1.2, start:215, goal:180, pace:1.5,
              protPerLb:1, fatPct:0.25, remindOn:false, remindTime:"20:00" },
-  days:{}, custom:[], favs:[], meals:[], plan:{ days:[1,2,4,6], started:null },
+  days:{}, custom:[], favs:[], meals:[], customWorkouts:[], plan:{ days:[1,2,4,6], started:null },
   meta:{ pupdated:0, lastSync:0, notified:"" }
 };
 
@@ -66,7 +66,7 @@ if(!DB) DB = JSON.parse(JSON.stringify(DEFAULTS));
 DB.settings = Object.assign({}, DEFAULTS.settings, DB.settings||{});
 DB.meta     = Object.assign({}, DEFAULTS.meta, DB.meta||{});
 ["days"].forEach(k=>{ if(!DB[k]) DB[k]={}; });
-["custom","favs","meals"].forEach(k=>{ if(!Array.isArray(DB[k])) DB[k]=[]; });
+["custom","favs","meals","customWorkouts"].forEach(k=>{ if(!Array.isArray(DB[k])) DB[k]=[]; });
 if(!DB.plan || typeof DB.plan!=="object") DB.plan = { days:[1,2,4,6], started:null };
 
 function save(){ lsSet(KEY, JSON.stringify(DB)); }
@@ -746,6 +746,7 @@ async function doSync(quiet){
       DB.settings = Object.assign({}, DEFAULTS.settings, pr.data.settings||{});
       DB.custom = pr.data.custom||[]; DB.favs = pr.data.favs||[]; DB.meals = pr.data.meals||[];
       if(pr.data.plan) DB.plan = pr.data.plan;
+      DB.customWorkouts = pr.data.customWorkouts||[];
       DB.meta.pupdated = pr.updated;
     } else if(!pr || (DB.meta.pupdated||0) > (pr.updated||0)){
       // no row on the server yet (first sign-in) — upload what this device has
@@ -753,7 +754,7 @@ async function doSync(quiet){
       await sbRest("cut_profile?on_conflict=user_id", {
         method:"POST", headers:{ "Prefer":"resolution=merge-duplicates,return=minimal" },
         body:[{ user_id:AUTH.user_id, updated:DB.meta.pupdated,
-          data:{ settings:DB.settings, custom:DB.custom, favs:DB.favs, meals:DB.meals, plan:DB.plan } }]
+          data:{ settings:DB.settings, custom:DB.custom, favs:DB.favs, meals:DB.meals, plan:DB.plan, customWorkouts:DB.customWorkouts } }]
       });
     }
 
@@ -1019,6 +1020,8 @@ $("copyYest").onclick = copyYesterday;
 $("saveMeal").onclick = saveDayAsMeal;
 
 $("closeSheet").onclick = closeSheet;
+$("closePick").onclick = closePick;
+$("pickSheet").onclick = e=>{ if(e.target===$("pickSheet")) closePick(); };
 $("addSheet").onclick = e=>{ if(e.target===$("addSheet")) closeSheet(); };
 $("mealPick").onchange = e=>{ sheetMeal = e.target.value; };
 $("search").addEventListener("input", doSearch);
@@ -1099,7 +1102,25 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && AUTH)
    BOOT
    ============================================================ */
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
-  window.addEventListener("load", ()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+  /* When a new version is published the old service worker keeps serving its cache,
+     so the first reload still shows stale files. Watch for the new worker taking
+     over and refresh once, automatically — no more double-reloading. */
+  let hadController = !!navigator.serviceWorker.controller;
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", ()=>{
+    if(!hadController){ hadController = true; return; }  // first ever install: adopt quietly
+    if(refreshing) return;
+    refreshing = true;
+    toast("Updating to the latest version…");
+    setTimeout(()=>location.reload(), 400);
+  });
+  window.addEventListener("load", ()=>{
+    navigator.serviceWorker.register("./sw.js").then(reg=>{
+      reg.update();
+      setInterval(()=>reg.update(), 30*60*1000);        // check twice an hour
+      document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) reg.update(); });
+    }).catch(()=>{});
+  });
 }
 
 renderToday();
@@ -1142,23 +1163,25 @@ function planIdx(){ return planCount() % 4; }
 function planDone(){ return planCount() >= 32; }
 
 /* ---- turn a template into a concrete session ---- */
-function buildSession(week, idx){
+function buildSession(week, idx, variantKey, swaps){
   const type = WEEK_ORDER[idx];
   const T = SESSIONS[type];
   const phase = PHASE_OF_WEEK[Math.max(0,Math.min(7,week-1))];
   const level = LEVEL_OF_PHASE[phase];
   const rounds = T.rounds[phase];
   const rest = REST_OF_PHASE[phase];
+  const V = variantOf(type, variantKey||"a");
+  const SW = swaps || {};
 
-  const pick = slot => {
-    const id = slot.ex[level];
+  const pick = (slot, slotIndex) => {
+    const id = SW[slotIndex] || slot.ex[level];
     const secs = slot.secs ? (slot.secs[level]||0) : 0;
     const reps = slot.reps ? (slot.reps[level]||0) : 0;
     return { id:id, ex:EX[id], secs:secs, reps:(secs>0?0:reps) };
   };
 
   const warm = WARMUP.map(s=>({ id:s.ex[level], ex:EX[s.ex[level]], secs:s.secs, reps:0 }));
-  const main = T.main.map(pick);
+  const main = V.main.map(pick);
   const cool = COOLDOWN.map(s=>({ id:s.ex[level], ex:EX[s.ex[level]], secs:s.secs, reps:0 }));
 
   /* flatten into the step list the player walks through */
@@ -1184,6 +1207,7 @@ function buildSession(week, idx){
   });
 
   return { type:type, name:T.name, focus:T.focus, week:week, idx:idx, rounds:rounds,
+           variant:V.key, variantLabel:V.label, counts:true,
            rest:rest, main:main, steps:steps, estMin:Math.round(sec/60), estCal:Math.round(cal) };
 }
 
@@ -1191,13 +1215,13 @@ function buildSession(week, idx){
    TRAIN TAB
    ============================================================ */
 function renderTrain(){
-  const wk = planWeek(), idx = planIdx(), P = plan();
+  syncSel();
+  const wk = planWeek(), P2 = plan();
   const done = planDone();
-  const sess = buildSession(wk, idx);
+  const sess = currentSession();
   const todayDone = dayWorkouts(TODAY).length > 0;
-  const isTrainingDay = P.days.indexOf(new Date().getDay()) >= 0;
+  const isTrainingDay = P2.days.indexOf(new Date().getDay()) >= 0;
 
-  /* progress header */
   $("planHead").innerHTML = done
     ? '<div class="stat"><div class="v">Done</div><div class="k">8 weeks complete</div></div>'
     : '<div style="display:flex;align-items:baseline;justify-content:space-between">'+
@@ -1206,57 +1230,57 @@ function renderTrain(){
       '<div class="bar" style="height:8px;margin-top:9px"><i style="width:'+(planCount()/32*100)+
         '%;background:linear-gradient(90deg,#22c55e,#4ade80)"></i></div>';
 
-  /* today's card */
   const box = $("todaySession");
   if(todayDone){
-    const w = dayWorkouts(TODAY)[0];
+    const list = dayWorkouts(TODAY);
     box.innerHTML = '<div class="card"><h2>Today</h2>'+
-      '<div style="display:flex;align-items:center;gap:12px">'+
-        '<div style="font-size:26px">✓</div>'+
+      list.map(w=>'<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">'+
+        '<div style="font-size:22px;color:var(--accent)">✓</div>'+
         '<div style="flex:1"><b>'+esc(w.name)+'</b>'+
-        '<div style="font-size:12.5px;color:var(--tx3)">'+w.minutes+' min · '+r0(w.cal)+' cal · logged</div></div>'+
-      '</div>'+
-      '<button class="btn ghost wide" id="startAnother" style="margin-top:12px">Do another session</button></div>';
-    $("startAnother").onclick = ()=>openSession(buildSession(planWeek(), planIdx()));
-  } else if(done){
-    box.innerHTML = '<div class="card"><h2>Plan complete</h2>'+
-      '<div class="hint">You finished all 32 sessions. Restart below to run it again — the later weeks will feel a lot easier this time.</div>'+
-      '<button class="btn wide" id="startAnyway" style="margin-top:12px">Repeat a session</button></div>';
-    $("startAnyway").onclick = ()=>openSession(buildSession(8, planIdx()));
+        '<div style="font-size:12.5px;color:var(--tx3)">'+w.minutes+' min · '+r0(w.cal)+' cal'+
+          (w.plan?'':' · extra')+'</div></div></div>').join("")+
+      '<button class="btn ghost wide" id="startAnother" style="margin-top:6px">Do another session</button></div>';
+    $("startAnother").onclick = ()=>{ resetSel(); openVersionPick(); };
   } else {
+    const badge = sess.counts===false
+      ? '<span class="pill" style="color:var(--tx3)">extra — doesn\'t move the plan</span>'
+      : '<span class="pill" style="color:var(--accent);border-color:var(--accent-dim)">counts toward week '+wk+'</span>';
     box.innerHTML = '<div class="card">'+
-      '<h2>'+(isTrainingDay ? "Today's session" : "Next session")+'</h2>'+
+      '<h2>'+(isTrainingDay ? "Today's session" : "Next session")+
+        '<span class="act" id="changeSession">Change</span></h2>'+
       (isTrainingDay ? "" : '<div class="hint" style="margin:0 0 10px">Today is a rest day on your schedule. Start it anyway if you feel good.</div>')+
-      '<div style="font-size:19px;font-weight:700;letter-spacing:-.02em">'+sess.name+'</div>'+
-      '<div style="font-size:13px;color:var(--tx2);margin-top:2px">'+sess.focus+'</div>'+
+      '<div style="font-size:19px;font-weight:700;letter-spacing:-.02em">'+esc(sess.name)+'</div>'+
+      '<div style="font-size:13px;color:var(--tx2);margin-top:2px">'+
+        esc(sess.variantLabel && sess.variantLabel!=="Balanced" ? sess.variantLabel : sess.focus)+'</div>'+
       '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'+
         '<span class="pill">'+sess.estMin+' min</span>'+
         '<span class="pill">'+sess.rounds+' rounds</span>'+
-        '<span class="pill">'+sess.main.length+' exercises</span>'+
-        '<span class="pill">~'+sess.estCal+' cal</span>'+
+        '<span class="pill">~'+sess.estCal+' cal</span>'+badge+
       '</div>'+
       '<button class="btn wide" id="startSession" style="margin-top:14px;font-size:15px">Start workout</button>'+
-      '<button class="btn ghost wide" id="previewSession" style="margin-top:8px">See the exercises</button>'+
       '</div>';
-    $("startSession").onclick = ()=>openSession(sess);
-    $("previewSession").onclick = ()=>{ previewOpen = !previewOpen; renderTrain(); };
+    $("startSession").onclick = ()=>openSession(currentSession());
+    $("changeSession").onclick = openVersionPick;
   }
 
-  /* exercise preview */
-  $("sessionPreview").innerHTML = (previewOpen && !todayDone && !done)
-    ? '<div class="card"><h2>'+esc(sess.name)+' — '+sess.rounds+' rounds</h2>'+
-      sess.main.map(x=>'<div class="entry"><div class="info"><div class="n">'+esc(x.ex.n)+'</div>'+
-        '<div class="m">'+esc(x.ex.cue[0])+'</div></div>'+
-        '<div class="cal">'+(x.secs>0 ? x.secs+"s" : x.reps+" reps")+'</div></div>').join("")+
-      '<div class="hint">'+sess.rest+' seconds rest between exercises. Warm-up and cool-down are included in the session.</div></div>'
-    : "";
+  /* the exercises in this session, each swappable */
+  $("sessionPreview").innerHTML = todayDone ? "" :
+    '<div class="card"><h2>Exercises <span class="act" id="openLib">Library</span></h2>'+
+    sess.main.map((x,i)=>'<div class="entry"><div class="info"><div class="n">'+esc(x.ex.n)+'</div>'+
+      '<div class="m">'+esc(x.ex.cue[0])+'</div></div>'+
+      '<div class="cal">'+(x.secs>0 ? x.secs+"s" : x.reps+"×")+'</div>'+
+      '<button class="star" data-swapi="'+i+'" title="Swap">⇄</button></div>').join("")+
+    '<div class="hint">'+sess.rest+'s rest between exercises. Tap ⇄ to swap any exercise for another that trains the same thing — the session still counts.</div></div>';
+  if(!todayDone){
+    $("sessionPreview").querySelectorAll("[data-swapi]").forEach(b=>b.onclick=()=>openSwapPick(+b.dataset.swapi));
+    $("openLib").onclick = openLibrary;
+  }
 
-  /* week strip */
   let strip = "";
   for(let i=6;i>=0;i--){
     const k = shiftDay(TODAY,-i), d = parseYmd(k);
     const trained = (DB.days[k]&&DB.days[k].workouts&&DB.days[k].workouts.length)>0;
-    const scheduled = P.days.indexOf(d.getDay())>=0;
+    const scheduled = P2.days.indexOf(d.getDay())>=0;
     strip += '<div style="flex:1;text-align:center">'+
       '<div style="font-size:10.5px;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em">'+DOW[d.getDay()]+'</div>'+
       '<div style="margin-top:5px;height:30px;border-radius:8px;display:grid;place-items:center;font-size:14px;'+
@@ -1267,21 +1291,29 @@ function renderTrain(){
   }
   $("weekStrip").innerHTML = strip;
 
-  /* schedule picker */
   $("dayPicker").innerHTML = DOW.map((d,i)=>
-    '<button class="chip" data-dow="'+i+'" style="'+(P.days.indexOf(i)>=0
+    '<button class="chip" data-dow="'+i+'" style="'+(P2.days.indexOf(i)>=0
       ? 'background:var(--accent-dim);color:#04120a;border-color:var(--accent-dim);font-weight:600' : '')+'">'+d+'</button>').join("");
   $("dayPicker").querySelectorAll("[data-dow]").forEach(b=>b.onclick=()=>{
-    const i=+b.dataset.dow, at=P.days.indexOf(i);
-    if(at>=0){ if(P.days.length>1) P.days.splice(at,1); } else P.days.push(i);
-    P.days.sort(); touchProfile(); renderTrain();
+    const i=+b.dataset.dow, at=P2.days.indexOf(i);
+    if(at>=0){ if(P2.days.length>1) P2.days.splice(at,1); } else P2.days.push(i);
+    P2.days.sort(); touchProfile(); renderTrain();
   });
 
-  /* history */
+  const mine = customList();
+  $("myCustom").innerHTML = (mine.length
+    ? mine.map((c,i)=>'<div class="entry"><div class="info"><div class="n">'+esc(c.name)+'</div>'+
+        '<div class="m">'+c.items.length+' exercises · '+(c.rounds||3)+' rounds</div></div>'+
+        '<button class="btn ghost sm" data-edit="'+i+'">Edit</button></div>').join("")
+    : '<div class="empty">None yet.</div>')+
+    '<button class="btn ghost wide" id="newCustom" style="margin-top:10px">Build a session</button>';
+  $("myCustom").querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openBuilder(customList()[+b.dataset.edit]));
+  $("newCustom").onclick = ()=>openBuilder(null);
+
   const hist = allWorkouts().reverse().slice(0,12);
   $("workoutHistory").innerHTML = hist.length
-    ? hist.map((w,i)=>'<div class="entry"><div class="info"><div class="n">'+esc(w.name)+
-        (w.plan?' <span style="color:var(--tx3);font-size:11px">wk '+w.week+'</span>':'')+'</div>'+
+    ? hist.map(w=>'<div class="entry"><div class="info"><div class="n">'+esc(w.name)+
+        (w.plan?' <span style="color:var(--tx3);font-size:11px">wk '+w.week+'</span>':' <span style="color:var(--tx3);font-size:11px">extra</span>')+'</div>'+
         '<div class="m">'+parseYmd(w.date).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})+
         ' · '+w.minutes+' min</div></div>'+
         '<div class="cal">'+r0(w.cal)+'</div>'+
@@ -1293,7 +1325,7 @@ function renderTrain(){
     if(at>=0){ arr.splice(at,1); touchDay(k); renderTrain(); renderToday(); toast("Workout removed"); }
   });
 }
-let previewOpen = false;
+
 
 /* ============================================================
    GUIDED PLAYER
@@ -1430,21 +1462,298 @@ function finishSession(){
 }
 function saveSession(){
   const w = {
-    id: uid(), name: P.sess.name, type: P.sess.type, plan: true,
+    id: uid(), name: P.sess.name + (P.sess.variantLabel && P.sess.variantLabel!=="Balanced" ? " · "+P.sess.variantLabel : ""),
+    type: P.sess.type, plan: P.sess.counts !== false,
     week: P.sess.week, idx: P.sess.idx,
     minutes: P.result.mins, cal: P.result.cal
   };
   dayWorkouts(TODAY).push(w);
   touchDay(TODAY);
   closePlayer();
-  previewOpen = false;
+  resetSel();
   renderTrain(); renderToday();
-  toast("Workout saved — "+w.cal+" cal added");
+  toast(w.plan ? "Session done — "+w.cal+" cal added" : "Logged as an extra — "+w.cal+" cal added");
+}
+
+
+/* ============================================================
+   CHOOSING WHAT TO TRAIN
+   - alternate versions of each planned session (still count)
+   - swapping individual exercises for same-muscle alternatives
+   - building and saving your own sessions
+   - browsing the whole exercise library
+   ============================================================ */
+
+let sel = { idx:-1, variant:"a", swaps:{}, custom:null };
+function resetSel(){ sel = { idx:planIdx(), variant:"a", swaps:{}, custom:null }; }
+function syncSel(){ if(sel.idx !== planIdx()){ resetSel(); } }
+
+function variantsFor(type){ return (window.VARIANTS && VARIANTS[type]) || []; }
+function variantOf(type, key){
+  const list = variantsFor(type);
+  return list.find(v=>v.key===key) || list[0] || { key:"a", label:"Balanced", main:SESSIONS[type].main };
+}
+function customList(){ if(!Array.isArray(DB.customWorkouts)) DB.customWorkouts=[]; return DB.customWorkouts; }
+
+/* the session the Train tab is currently offering */
+function currentSession(){
+  syncSel();
+  if(sel.custom) return buildCustomSession(sel.custom);
+  return buildSession(planWeek(), planIdx(), sel.variant, sel.swaps);
+}
+
+function buildCustomSession(cw){
+  const level = 1;
+  const items = cw.items.filter(it=>EX[it.ex]);
+  const main = items.map(it=>({ id:it.ex, ex:EX[it.ex], secs:it.secs||0, reps:it.secs?0:(it.reps||10) }));
+  const warm = WARMUP.map(s=>({ id:s.ex[level], ex:EX[s.ex[level]], secs:s.secs, reps:0 }));
+  const cool = COOLDOWN.map(s=>({ id:s.ex[level], ex:EX[s.ex[level]], secs:s.secs, reps:0 }));
+  const rounds = cw.rounds||3, rest = cw.rest||45;
+
+  const steps = [];
+  warm.forEach(x=>steps.push({kind:"work", phase:"Warm-up", x:x, secs:x.secs}));
+  for(let r=1;r<=rounds;r++){
+    main.forEach((x,j)=>{
+      steps.push({kind:"work", phase:"Round "+r+" of "+rounds, x:x, secs:x.secs, reps:x.reps});
+      if(!(r===rounds && j===main.length-1)) steps.push({kind:"rest", secs:rest, next:(j===main.length-1?main[0]:main[j+1])});
+    });
+  }
+  steps.push({kind:"rest", secs:30, next:cool[0]});
+  cool.forEach(x=>steps.push({kind:"work", phase:"Cool-down", x:x, secs:x.secs}));
+
+  const kg = latestWeight()*0.45359237;
+  let sec=0, cal=0;
+  steps.forEach(s=>{
+    const d = s.kind==="rest" ? s.secs : (s.secs>0 ? s.secs : s.reps*3);
+    sec += d; cal += (s.kind==="rest"?1.5:s.x.ex.met)*kg*(d/3600);
+  });
+  return { type:"custom", customId:cw.id, name:cw.name, focus:"Your own session", counts:false,
+           week:planWeek(), idx:planIdx(), rounds:rounds, rest:rest, main:main, steps:steps,
+           estMin:Math.round(sec/60), estCal:Math.round(cal) };
+}
+
+/* ---------- generic bottom sheet ---------- */
+function openPick(title, html){
+  $("pickTitle").textContent = title;
+  $("pickBody").innerHTML = html;
+  $("pickSheet").classList.add("on");
+  document.body.style.overflow = "hidden";
+}
+function closePick(){
+  $("pickSheet").classList.remove("on");
+  document.body.style.overflow = "";
+}
+
+/* ---------- choose a version / another session ---------- */
+function openVersionPick(){
+  syncSel();
+  const type = WEEK_ORDER[planIdx()];
+  const planned = SESSIONS[type].name;
+  const vs = variantsFor(type);
+
+  let h = '<div class="hint" style="margin:0 0 12px">These all train the same thing as today\'s '+
+          esc(planned)+', so any of them still counts toward week '+planWeek()+'.</div>';
+  h += vs.map(v=>{
+    const s = buildSession(planWeek(), planIdx(), v.key, {});
+    return '<button class="pickrow'+(v.key===sel.variant&&!sel.custom?' on':'')+'" data-variant="'+v.key+'">'+
+      '<div class="info"><div class="n">'+esc(v.label)+'</div><div class="m">'+esc(v.desc)+'</div></div>'+
+      '<div class="meta">'+s.estMin+' min<br><span>'+s.estCal+' cal</span></div></button>';
+  }).join("");
+
+  h += '<h2 style="margin:20px 0 8px">Other sessions</h2>'+
+       '<div class="hint" style="margin:0 0 10px">Different target, so these log their calories but don\'t move the plan forward.</div>';
+  h += WEEK_ORDER.map((t,i)=> i===planIdx() ? "" : (function(){
+        const s = buildSession(planWeek(), i, "a", {});
+        return '<button class="pickrow" data-other="'+i+'">'+
+          '<div class="info"><div class="n">'+esc(s.name)+'</div><div class="m">'+esc(s.focus)+'</div></div>'+
+          '<div class="meta">'+s.estMin+' min<br><span>'+s.estCal+' cal</span></div></button>';
+      })()).join("");
+
+  const cw = customList();
+  h += '<h2 style="margin:20px 0 8px">Your own sessions</h2>';
+  h += cw.length ? cw.map((c,i)=>{
+        const s = buildCustomSession(c);
+        return '<button class="pickrow'+(sel.custom&&sel.custom.id===c.id?' on':'')+'" data-custom="'+i+'">'+
+          '<div class="info"><div class="n">'+esc(c.name)+'</div><div class="m">'+c.items.length+' exercises · '+(c.rounds||3)+' rounds</div></div>'+
+          '<div class="meta">'+s.estMin+' min<br><span>'+s.estCal+' cal</span></div></button>';
+      }).join("") : '<div class="empty" style="padding:6px 0">None saved yet.</div>';
+  h += '<button class="btn ghost wide" id="pickBuild" style="margin-top:12px">Build a new session</button>';
+
+  openPick("Choose a workout", h);
+
+  $("pickBody").querySelectorAll("[data-variant]").forEach(b=>b.onclick=()=>{
+    sel.variant = b.dataset.variant; sel.custom = null; sel.swaps = {};
+    closePick(); renderTrain();
+  });
+  $("pickBody").querySelectorAll("[data-other]").forEach(b=>b.onclick=()=>{
+    sel.otherIdx = +b.dataset.other; sel.custom = null; sel.swaps = {}; sel.variant = "a";
+    closePick();
+    openSession(Object.assign(buildSession(planWeek(), sel.otherIdx, "a", {}), {counts:false}));
+  });
+  $("pickBody").querySelectorAll("[data-custom]").forEach(b=>b.onclick=()=>{
+    sel.custom = customList()[+b.dataset.custom]; sel.swaps = {};
+    closePick(); renderTrain();
+  });
+  $("pickBuild").onclick = ()=>openBuilder(null);
+}
+
+/* ---------- swap one exercise for a same-muscle alternative ---------- */
+function openSwapPick(slotIndex){
+  syncSel();
+  const s = currentSession();
+  const cur = s.main[slotIndex];
+  if(!cur) return;
+  const group = GROUP[cur.id];
+  const options = Object.keys(EX).filter(id=>GROUP[id]===group);
+
+  const h = '<div class="hint" style="margin:0 0 12px">Alternatives that train the same thing ('+
+      esc(GROUP_LABEL[group]||group)+'), so the session still counts.</div>' +
+    options.map(id=>'<button class="pickrow'+(id===cur.id?' on':'')+'" data-swap="'+id+'">'+
+      '<div class="info"><div class="n">'+esc(EX[id].n)+'</div><div class="m">'+esc(EX[id].cue[0])+'</div></div>'+
+      '<div class="meta">'+(id===cur.id?'current':'')+'</div></button>').join("") +
+    (Object.keys(sel.swaps).length ? '<button class="btn ghost wide" id="swapReset" style="margin-top:12px">Undo all swaps</button>' : '');
+
+  openPick("Swap "+cur.ex.n, h);
+  $("pickBody").querySelectorAll("[data-swap]").forEach(b=>b.onclick=()=>{
+    if(sel.custom){
+      sel.custom.items[slotIndex].ex = b.dataset.swap;
+      touchProfile();
+    } else {
+      sel.swaps[slotIndex] = b.dataset.swap;
+    }
+    closePick(); renderTrain();
+  });
+  if($("swapReset")) $("swapReset").onclick = ()=>{ sel.swaps={}; closePick(); renderTrain(); };
+}
+
+/* ---------- exercise library ---------- */
+function openLibrary(){
+  const h = '<input id="libSearch" placeholder="Search exercises…" autocomplete="off">'+
+            '<div class="chips" style="margin-top:10px" id="libGroups"></div>'+
+            '<div id="libList" style="margin-top:12px"></div>';
+  openPick("Exercise library", h);
+  let gFilter = "";
+  const groups = ["lower","push","pull","core","cardio","mobility"];
+  $("libGroups").innerHTML = '<button class="chip on" data-g="">All</button>' +
+    groups.map(g=>'<button class="chip" data-g="'+g+'">'+esc(GROUP_LABEL[g])+'</button>').join("");
+  const paint = ()=>{
+    const q = ($("libSearch").value||"").toLowerCase();
+    const ids = Object.keys(EX).filter(id=>(!gFilter||GROUP[id]===gFilter) && EX[id].n.toLowerCase().includes(q));
+    $("libList").innerHTML = ids.length ? ids.map(id=>
+      '<div class="card tight" style="margin-bottom:8px"><div style="font-weight:600;font-size:14.5px">'+esc(EX[id].n)+
+      '<span style="float:right;font-weight:400;font-size:11.5px;color:var(--tx3)">'+esc(GROUP_LABEL[GROUP[id]])+'</span></div>'+
+      '<ul style="margin:8px 0 0;padding-left:18px;color:var(--tx2);font-size:13px">'+
+        EX[id].cue.map(c=>'<li>'+esc(c)+'</li>').join("")+'</ul></div>').join("")
+      : '<div class="empty">Nothing matches.</div>';
+  };
+  $("libSearch").addEventListener("input", paint);
+  $("libGroups").querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{
+    gFilter = b.dataset.g;
+    $("libGroups").querySelectorAll("[data-g]").forEach(x=>x.classList.toggle("on", x===b));
+    paint();
+  });
+  paint();
+}
+
+/* ---------- build your own ---------- */
+let draft = null;
+function openBuilder(existing){
+  draft = existing
+    ? JSON.parse(JSON.stringify(existing))
+    : { id:uid(), name:"", rounds:3, rest:45, items:[] };
+  const h =
+    '<div class="row"><div class="field" style="flex:2"><label>Name</label>'+
+      '<input id="bName" placeholder="Saturday circuit" value="'+esc(draft.name)+'"></div>'+
+      '<div class="field"><label>Rounds</label><select id="bRounds">'+
+        [1,2,3,4,5].map(n=>'<option value="'+n+'"'+(n===draft.rounds?' selected':'')+'>'+n+'</option>').join("")+
+      '</select></div>'+
+      '<div class="field"><label>Rest</label><select id="bRest">'+
+        [30,40,45,60,75].map(n=>'<option value="'+n+'"'+(n===draft.rest?' selected':'')+'>'+n+'s</option>').join("")+
+      '</select></div></div>'+
+    '<h2 style="margin:16px 0 8px">Exercises <span id="bCount" style="font-weight:400;color:var(--tx3)"></span></h2>'+
+    '<div id="bChosen"></div>'+
+    '<h2 style="margin:16px 0 8px">Add exercises</h2>'+
+    '<input id="bSearch" placeholder="Search…" autocomplete="off">'+
+    '<div class="chips" style="margin-top:9px" id="bGroups"></div>'+
+    '<div id="bPool" style="margin-top:10px;max-height:280px;overflow-y:auto"></div>'+
+    '<button class="btn wide" id="bSave" style="margin-top:14px">Save session</button>'+
+    (existing ? '<button class="btn ghost wide" id="bDelete" style="margin-top:8px;color:var(--warn)">Delete this session</button>' : '');
+
+  openPick(existing ? "Edit session" : "Build a session", h);
+
+  let gF = "";
+  const groups = ["lower","push","pull","core","cardio"];
+  $("bGroups").innerHTML = '<button class="chip on" data-bg="">All</button>' +
+    groups.map(g=>'<button class="chip" data-bg="'+g+'">'+esc(GROUP_LABEL[g])+'</button>').join("");
+
+  const paintChosen = ()=>{
+    $("bCount").textContent = draft.items.length ? "("+draft.items.length+")" : "";
+    $("bChosen").innerHTML = draft.items.length ? draft.items.map((it,i)=>
+      '<div class="entry"><div class="info"><div class="n">'+esc(EX[it.ex].n)+'</div>'+
+      '<div class="m">'+esc(GROUP_LABEL[GROUP[it.ex]])+'</div></div>'+
+      '<select data-mode="'+i+'" style="width:78px;padding:6px">'+
+        '<option value="reps"'+(it.secs?'':' selected')+'>reps</option>'+
+        '<option value="secs"'+(it.secs?' selected':'')+'>secs</option></select>'+
+      '<input type="number" inputmode="numeric" data-val="'+i+'" value="'+(it.secs||it.reps||10)+'" style="width:62px;text-align:center;padding:6px">'+
+      '<button class="del" data-rm="'+i+'">×</button></div>').join("")
+      : '<div class="empty" style="padding:8px 0">Add a few exercises below.</div>';
+
+    $("bChosen").querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{ draft.items.splice(+b.dataset.rm,1); paintChosen(); });
+    $("bChosen").querySelectorAll("[data-mode]").forEach(sl=>sl.onchange=()=>{
+      const i=+sl.dataset.mode, v=parseInt($("bChosen").querySelector('[data-val="'+i+'"]').value)||10;
+      if(sl.value==="secs"){ draft.items[i].secs=v; draft.items[i].reps=0; }
+      else { draft.items[i].reps=v; draft.items[i].secs=0; }
+      paintChosen();
+    });
+    $("bChosen").querySelectorAll("[data-val]").forEach(inp=>inp.onchange=()=>{
+      const i=+inp.dataset.val, v=Math.max(1, parseInt(inp.value)||10);
+      if(draft.items[i].secs) draft.items[i].secs=v; else draft.items[i].reps=v;
+    });
+  };
+  const paintPool = ()=>{
+    const q=($("bSearch").value||"").toLowerCase();
+    const ids = Object.keys(EX).filter(id=>GROUP[id]!=="mobility" && (!gF||GROUP[id]===gF) && EX[id].n.toLowerCase().includes(q));
+    $("bPool").innerHTML = ids.map(id=>'<button class="pickrow" data-add="'+id+'">'+
+      '<div class="info"><div class="n">'+esc(EX[id].n)+'</div><div class="m">'+esc(GROUP_LABEL[GROUP[id]])+'</div></div>'+
+      '<div class="meta">＋</div></button>').join("") || '<div class="empty">Nothing matches.</div>';
+    $("bPool").querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{
+      const id=b.dataset.add;
+      draft.items.push(EX[id].mode==="time" ? {ex:id,secs:35,reps:0} : {ex:id,reps:12,secs:0});
+      paintChosen();
+    });
+  };
+  $("bSearch").addEventListener("input", paintPool);
+  $("bGroups").querySelectorAll("[data-bg]").forEach(b=>b.onclick=()=>{
+    gF=b.dataset.bg; $("bGroups").querySelectorAll("[data-bg]").forEach(x=>x.classList.toggle("on",x===b)); paintPool();
+  });
+  $("bRounds").onchange = e=>{ draft.rounds = +e.target.value; };
+  $("bRest").onchange   = e=>{ draft.rest   = +e.target.value; };
+
+  $("bSave").onclick = ()=>{
+    draft.name = ($("bName").value||"").trim() || "My session";
+    if(!draft.items.length){ toast("Add at least one exercise"); return; }
+    const list = customList();
+    const at = list.findIndex(c=>c.id===draft.id);
+    if(at>=0) list[at] = draft; else list.unshift(draft);
+    DB.customWorkouts = list.slice(0,20);
+    touchProfile();
+    sel.custom = draft; sel.swaps = {};
+    closePick(); renderTrain(); toast("Saved — ready to start");
+  };
+  if($("bDelete")) $("bDelete").onclick = ()=>{
+    const list = customList(), at = list.findIndex(c=>c.id===draft.id);
+    if(at>=0) list.splice(at,1);
+    if(sel.custom && sel.custom.id===draft.id) sel.custom = null;
+    touchProfile(); closePick(); renderTrain(); toast("Session deleted");
+  };
+
+  paintChosen(); paintPool();
 }
 
 // expose a couple of internals for the test harness
 window.__cut = { get DB(){return DB;}, save:save, renderToday:renderToday, renderTrends:renderTrends, renderWeight:renderWeight,
                  renderTrain:renderTrain, buildSession:buildSession, planWeek:planWeek, get P(){return P;},
+                 currentSession:currentSession, openVersionPick:openVersionPick, openLibrary:openLibrary, openBuilder:openBuilder,
                  fillSettings:fillSettings, switchTab:switchTab, openSheet:openSheet, streak:streak,
                  macroTargets:macroTargets, baseBurn:baseBurn, deficitOn:deficitOn };
 })();

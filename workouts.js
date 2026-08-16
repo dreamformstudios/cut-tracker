@@ -155,3 +155,118 @@ window.WEEK_ORDER = ["lower","cardio","upper","full"];
 window.PHASE_OF_WEEK = [0,0,1,1,2,2,3,3];
 window.LEVEL_OF_PHASE = [0,0,1,2];
 window.REST_OF_PHASE  = [60,50,45,40];
+
+/* ============================================================
+   Muscle group per exercise — drives same-target swaps.
+   ============================================================ */
+window.GROUP = {};
+(function(){
+  const g = {
+    mobility:["marchWarm","armCircle","hipOpener","catCow","legSwing","shoulderRoll","worldGreat","torsoTwist",
+              "childPose","hamStretch","hipFlexor","chestStretch","quadStretch","downDog"],
+    lower:["boxSquat","squat","squatPause","splitSquat","revLunge","bulgarian","gluteBridge","slGluteBr",
+           "wallSit","calfRaise","stepUp","latLunge","squatPulse"],
+    push:["wallPush","inclinePush","kneePush","pushup","widePush","diamondPush","pikePush","chairDip"],
+    pull:["tableRow","towelRow","superman","ytw","revSnowAngel"],
+    core:["plank","kneePlank","sidePlank","deadBug","birdDog","hollowHold","legRaise","bicycle","flutter",
+          "russianTwist","mtnClimber"],
+    cardio:["marchFast","stepJack","jumpJack","highKnee","buttKick","skater","fastFeet","shadowBox",
+            "squatToStand","burpeeStep","burpee","jumpSquat"]
+  };
+  Object.keys(g).forEach(k=>g[k].forEach(id=>{ window.GROUP[id]=k; }));
+})();
+
+window.GROUP_LABEL = { lower:"Legs & glutes", push:"Push", pull:"Pull & back", core:"Core",
+                       cardio:"Cardio", mobility:"Mobility" };
+
+/* ============================================================
+   Alternate versions of each session.
+   Every variant hits the same target as the planned session, so
+   choosing one still counts toward the 8-week progression.
+   ============================================================ */
+window.VARIANTS = {
+  lower: [
+    { key:"a", label:"Balanced", desc:"The default mix — squat, hinge, single leg",
+      main: window.SESSIONS.lower.main },
+    { key:"b", label:"Glutes & hamstrings", desc:"More hinging, less quad",
+      main:[
+        {ex:["gluteBridge","gluteBridge","slGluteBr"],   reps:[14,16,10]},
+        {ex:["revLunge","revLunge","bulgarian"],         reps:[10,12,10]},
+        {ex:["boxSquat","squat","squatPause"],           reps:[10,12,12]},
+        {ex:["latLunge","latLunge","latLunge"],          reps:[8,10,12]},
+        {ex:["calfRaise","calfRaise","stepUp"],          reps:[15,18,12]}
+      ]},
+    { key:"c", label:"Easy on the joints", desc:"Chair-supported, nothing explosive",
+      main:[
+        {ex:["boxSquat","boxSquat","squat"],             reps:[12,14,14]},
+        {ex:["gluteBridge","gluteBridge","gluteBridge"], reps:[14,16,18]},
+        {ex:["splitSquat","splitSquat","splitSquat"],    reps:[8,10,12]},
+        {ex:["wallSit","wallSit","wallSit"],             secs:[30,40,50]},
+        {ex:["calfRaise","calfRaise","calfRaise"],       reps:[15,18,20]}
+      ]}
+  ],
+  upper: [
+    { key:"a", label:"Balanced", desc:"Push and pull evenly",
+      main: window.SESSIONS.upper.main },
+    { key:"b", label:"Push focus", desc:"Chest, shoulders and triceps",
+      main:[
+        {ex:["wallPush","inclinePush","pushup"],         reps:[10,10,10]},
+        {ex:["pikePush","pikePush","pikePush"],          reps:[6,8,10]},
+        {ex:["chairDip","chairDip","chairDip"],          reps:[8,10,12]},
+        {ex:["inclinePush","kneePush","widePush"],       reps:[8,10,10]},
+        {ex:["superman","superman","superman"],          reps:[12,14,16]}
+      ]},
+    { key:"c", label:"Pull & posture", desc:"Back and rear shoulders — good desk antidote",
+      main:[
+        {ex:["towelRow","towelRow","tableRow"],          reps:[10,12,10]},
+        {ex:["superman","superman","superman"],          reps:[12,14,16]},
+        {ex:["ytw","ytw","ytw"],                         secs:[30,35,40]},
+        {ex:["revSnowAngel","revSnowAngel","revSnowAngel"], secs:[30,35,40]},
+        {ex:["inclinePush","kneePush","pushup"],         reps:[8,10,10]}
+      ]}
+  ],
+  cardio: [
+    { key:"a", label:"Balanced", desc:"Mixed intensity circuit",
+      main: window.SESSIONS.cardio.main },
+    { key:"b", label:"Low impact", desc:"No jumping — quiet, apartment friendly",
+      main:[
+        {ex:["marchFast","marchFast","marchFast"],       secs:[45,50,55]},
+        {ex:["stepJack","stepJack","stepJack"],          secs:[40,45,50]},
+        {ex:["squatToStand","squatToStand","squatToStand"], secs:[35,40,45]},
+        {ex:["shadowBox","shadowBox","shadowBox"],       secs:[45,50,55]},
+        {ex:["burpeeStep","burpeeStep","burpeeStep"],    secs:[30,35,40]},
+        {ex:["fastFeet","fastFeet","fastFeet"],          secs:[30,35,40]}
+      ]},
+    { key:"c", label:"Hard intervals", desc:"High impact, highest burn",
+      main:[
+        {ex:["jumpJack","jumpJack","jumpJack"],          secs:[40,45,45]},
+        {ex:["highKnee","highKnee","highKnee"],          secs:[30,35,40]},
+        {ex:["mtnClimber","mtnClimber","mtnClimber"],    secs:[30,35,40]},
+        {ex:["skater","skater","skater"],                secs:[40,40,45]},
+        {ex:["burpee","burpee","burpee"],                secs:[30,35,40]},
+        {ex:["jumpSquat","jumpSquat","jumpSquat"],       secs:[30,35,40]}
+      ]}
+  ],
+  full: [
+    { key:"a", label:"Balanced", desc:"Whole body plus core",
+      main: window.SESSIONS.full.main },
+    { key:"b", label:"Core heavy", desc:"Same full-body base, much more midsection",
+      main:[
+        {ex:["boxSquat","squat","squat"],                reps:[12,14,16]},
+        {ex:["inclinePush","kneePush","pushup"],         reps:[8,10,10]},
+        {ex:["kneePlank","plank","plank"],               secs:[30,40,50]},
+        {ex:["deadBug","deadBug","hollowHold"],          reps:[12,14,0], secs:[0,0,35]},
+        {ex:["sidePlank","sidePlank","sidePlank"],       secs:[30,40,45]},
+        {ex:["birdDog","bicycle","bicycle"],             reps:[12,20,24]},
+        {ex:["flutter","flutter","legRaise"],            secs:[25,30,0], reps:[0,0,12]}
+      ]},
+    { key:"c", label:"Fast circuit", desc:"Shorter, moves quickly, gets the heart up",
+      main:[
+        {ex:["boxSquat","squat","jumpSquat"],            reps:[14,16,0], secs:[0,0,40]},
+        {ex:["inclinePush","kneePush","pushup"],         reps:[10,10,12]},
+        {ex:["revLunge","revLunge","revLunge"],          reps:[12,14,16]},
+        {ex:["mtnClimber","mtnClimber","mtnClimber"],    secs:[25,30,35]},
+        {ex:["kneePlank","plank","plank"],               secs:[30,40,45]}
+      ]}
+  ]
+};

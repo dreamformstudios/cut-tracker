@@ -1,5 +1,5 @@
 /* Service worker: makes the app open instantly and work with no connection. */
-const VERSION = "cut-tracker-v5";
+const VERSION = "cut-tracker-v7";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./foods.js", "./config.js", "./app.js",
   "./workouts.js", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png"

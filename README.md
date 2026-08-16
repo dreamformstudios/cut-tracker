@@ -32,6 +32,15 @@ you hit your goal weight.
 - **A guided session player** — one exercise on screen, countdown timer, automatic rest
   periods, form cues, audio pips on the last three seconds. Finishing a session logs its
   calories straight into that day's budget.
+- **You choose what you train.** Every planned session has three versions aimed at the
+  same muscles (balanced, a focus variation, and a joint-friendly one), and any
+  individual exercise can be swapped for another that trains the same thing. Because the
+  target is unchanged, those still count toward the 8-week progression. Picking a
+  different session type, or running a session you built yourself, logs its calories but
+  is marked *extra* and doesn't move the plan forward.
+- **Build your own sessions** from the full library — pick exercises, set reps or
+  seconds, choose rounds and rest — and save them to reuse.
+- **A searchable exercise library** of all 63 movements with their form cues.
 - **Works offline** and installs to your phone's home screen.
 - **Syncs across devices** through your own private Supabase database.
 
