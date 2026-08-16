@@ -24,6 +24,14 @@ you hit your goal weight.
 - **Streaks and a weekly rollup** — this week's average intake, deficit and weight
   change against last week's, plus what your logged deficit *predicts* you should have
   lost. When those two disagree, the scale is right.
+- **An 8-week bodyweight training plan** on the Train tab — four sessions a week, no
+  equipment. Two strength days to hold muscle through the cut, one conditioning
+  circuit, one full-body and core day. Difficulty steps up in phases: weeks 1–2 set the
+  baseline, 3–4 cut the rest periods, 5–6 add rounds and harder variations, 7–8 use the
+  hardest progressions.
+- **A guided session player** — one exercise on screen, countdown timer, automatic rest
+  periods, form cues, audio pips on the last three seconds. Finishing a session logs its
+  calories straight into that day's budget.
 - **Works offline** and installs to your phone's home screen.
 - **Syncs across devices** through your own private Supabase database.
 
@@ -37,6 +45,11 @@ a share of calories; carbs take the remainder.
 Intake never drops below 1,500 cal/day for men or 1,200 for women — if your chosen
 pace would push it lower, the app holds the floor and tells you.
 
+Workout calories use MET values — a standard measure of exercise intensity — applied to
+your current bodyweight and the time you actually spend working, with rest periods
+counted at a resting rate. Treat them as a reasonable estimate, not a measurement;
+they run lower than most fitness trackers report, which is usually the honest direction.
+
 None of this is medical advice, and the formulas are estimates: your real maintenance
 can sit a few hundred calories either side. That is exactly why the projection switches
 to your measured rate as soon as it has enough weigh-ins.
@@ -48,6 +61,7 @@ to your measured rate as soon as it has enough weigh-ins.
 | `index.html` | Page structure |
 | `app.js` | All logic — math, rendering, search, sync |
 | `foods.js` | The built-in food database |
+| `workouts.js` | Exercise library and the 8-week plan templates |
 | `styles.css` | Styling |
 | `config.js` | **The only file you edit** — your API keys |
 | `sw.js` | Service worker: offline support |

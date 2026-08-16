@@ -84,23 +84,46 @@
 
   <div class="card" style="margin-top:14px">
     <h2>Exercise</h2>
-    <div class="field"><label>Calories burned today</label>
+    <div id="workoutLine"></div>
+    <div class="field" style="margin-top:10px"><label>Other calories burned</label>
       <input id="burned" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="hint">Log only intentional exercise — everyday movement is already inside your base burn. If your watch shows "total calories," subtract your base burn (<span id="baseHint">0</span>) first.</div>
   </div>
 </section>
 
-<!-- ============ TRENDS ============ -->
-<section id="tab-trends" class="hide">
+<!-- ============ TRAIN ============ -->
+<section id="tab-train" class="hide">
+  <div class="card tight"><div id="planHead"></div></div>
+  <div id="todaySession"></div>
+  <div id="sessionPreview"></div>
+
   <div class="card">
-    <h2>This week vs last</h2>
-    <div id="weekly"></div>
+    <h2>This week</h2>
+    <div style="display:flex;gap:5px" id="weekStrip"></div>
   </div>
 
   <div class="card">
-    <h2>Last 14 days</h2>
-    <div style="overflow-x:auto"><table id="histTable"><tbody></tbody></table></div>
-    <div class="hint">Deficit = base burn + exercise − calories eaten.</div>
+    <h2>Training days</h2>
+    <div class="chips" id="dayPicker"></div>
+    <div class="hint">Which days you plan to train. The plan moves forward when you finish a session, not by the calendar — miss a day and you pick up where you left off.</div>
+  </div>
+
+  <div class="card">
+    <h2>Workout history</h2>
+    <div id="workoutHistory"></div>
+  </div>
+
+  <div class="card">
+    <h2>About this plan</h2>
+    <div class="hint" style="margin-top:0">
+      Eight weeks, four sessions a week, no equipment. Two strength days to hold onto muscle
+      while you cut, one conditioning circuit, one full-body and core day. Rounds and difficulty
+      step up every couple of weeks — week 7 uses harder variations of the same movements.
+      <br><br>
+      Work at a pace you can repeat. Soreness in the first fortnight is normal; sharp joint pain
+      is not — swap that exercise or stop. If you have a heart condition, an injury, or you have
+      been inactive a long while, get a doctor's blessing before starting.
+    </div>
   </div>
 </section>
 
@@ -148,6 +171,26 @@
     <div id="wHistory"></div>
   </div>
 
+</section>
+
+<!-- ============ MORE (trends + settings) ============ -->
+<section id="tab-more" class="hide">
+<div class="tabs" style="margin-bottom:16px">
+  <button data-pane="trends" class="on">Trends</button>
+  <button data-pane="settings">Settings</button>
+</div>
+
+<section id="tab-trends">
+  <div class="card">
+    <h2>This week vs last</h2>
+    <div id="weekly"></div>
+  </div>
+
+  <div class="card">
+    <h2>Last 14 days</h2>
+    <div style="overflow-x:auto"><table id="histTable"><tbody></tbody></table></div>
+    <div class="hint">Deficit = base burn + exercise − calories eaten.</div>
+  </div>
 </section>
 
 <!-- ============ SETTINGS ============ -->
@@ -226,20 +269,22 @@
   </div>
 </section>
 
+</section>
+
 </div><!-- /wrap -->
 
 <!-- ============ BOTTOM TABS ============ -->
 <nav class="tabbar"><div class="inner">
   <button data-tab="today" class="on">
     <svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z"/></svg>Today</button>
+  <button data-tab="train">
+    <svg viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/></svg>Train</button>
   <button id="tabAdd">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Add</button>
   <button data-tab="weight">
     <svg viewBox="0 0 24 24"><path d="M4 21V8a2 2 0 012-2h12a2 2 0 012 2v13z"/><circle cx="12" cy="12" r="3.2"/><path d="M9.5 6.2A3.2 3.2 0 0112 3a3.2 3.2 0 012.5 3.2"/></svg>Weight</button>
-  <button data-tab="trends">
-    <svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 3.5L21 5"/><path d="M21 5h-5m5 0v5"/></svg>Trends</button>
-  <button data-tab="settings">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-1.8-.3 1.6 1.6 0 00-1 1.5V21a2 2 0 11-4 0v-.1A1.6 1.6 0 008 19.4a1.6 1.6 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00.3-1.8 1.6 1.6 0 00-1.5-1H2a2 2 0 110-4h.1A1.6 1.6 0 004.6 8a1.6 1.6 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3H9a1.6 1.6 0 001-1.5V2a2 2 0 114 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8V9a1.6 1.6 0 001.5 1H22a2 2 0 110 4h-.1a1.6 1.6 0 00-1.5 1z"/></svg>Settings</button>
+  <button data-tab="more">
+    <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>More</button>
 </div></nav>
 
 <!-- ============ ADD-FOOD SHEET ============ -->
@@ -305,11 +350,42 @@
   </div>
 </div></div>
 
+<!-- ============ GUIDED PLAYER ============ -->
+<div class="player" id="player">
+  <div class="plhead">
+    <button class="iconbtn" id="plQuit">✕</button>
+    <div id="plPhase"></div>
+    <div id="plStep"></div>
+  </div>
+  <div class="plbody" id="plBody">
+    <div class="plring">
+      <svg viewBox="0 0 160 160">
+        <circle cx="80" cy="80" r="74" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="9"/>
+        <circle id="plArc" cx="80" cy="80" r="74" fill="none" stroke="#4ade80" stroke-width="9"
+                stroke-linecap="round" transform="rotate(-90 80 80)"/>
+      </svg>
+      <div class="plmid"><div id="plTime">0</div></div>
+    </div>
+    <div id="plName"></div>
+    <div id="plSub"></div>
+    <ul id="plCues"></ul>
+  </div>
+  <div class="plfoot">
+    <div id="plNext"></div>
+    <div class="plbtns">
+      <button class="btn ghost" id="plBack">Back</button>
+      <button class="btn" id="plDone">Done</button>
+      <button class="btn ghost" id="plPause">Pause</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <input type="file" id="fileIn" accept=".json,application/json" style="display:none">
 
 <script src="./config.js"></script>
 <script src="./foods.js"></script>
+<script src="./workouts.js"></script>
 <script src="./app.js"></script>
 </body>
 </html>

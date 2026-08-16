@@ -181,3 +181,42 @@ tr:last-child td{border-bottom:none}
   .eq{width:100%}
   .grid2{grid-template-columns:1fr}
 }
+
+/* ============ guided session player ============ */
+.player{
+  position:fixed; inset:0; z-index:80; background:var(--bg);
+  display:none; flex-direction:column;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 16px calc(14px + var(--safe-b));
+}
+.player.on{display:flex}
+.plhead{display:flex;align-items:center;gap:12px;flex:0 0 auto}
+.plhead #plPhase{flex:1;font-size:13px;color:var(--tx2);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.plhead #plStep{font-size:13px;color:var(--tx3);font-variant-numeric:tabular-nums}
+.plbody{
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; text-align:center; min-height:0; overflow-y:auto; padding:10px 0;
+  transition:background .3s; border-radius:18px;
+}
+.plbody.resting{background:radial-gradient(ellipse at center,rgba(96,165,250,.12),transparent 70%)}
+.plbody.finished{background:radial-gradient(ellipse at center,rgba(74,222,128,.14),transparent 70%)}
+.plring{position:relative;width:200px;height:200px;flex:0 0 auto}
+.plring svg{width:100%;height:100%;display:block}
+.plmid{position:absolute;inset:0;display:grid;place-items:center}
+.plmid #plTime{font-size:52px;font-weight:800;letter-spacing:-.04em;font-variant-numeric:tabular-nums;line-height:1}
+#plName{font-size:24px;font-weight:700;letter-spacing:-.025em;line-height:1.15;padding:0 8px}
+#plSub{font-size:13px;color:var(--tx3)}
+#plCues{list-style:none;margin:0;padding:0;max-width:420px;width:100%}
+#plCues li{
+  font-size:13.5px;color:var(--tx2);background:var(--panel);border:1px solid var(--line);
+  border-radius:9px;padding:8px 12px;margin-bottom:6px;text-align:left;
+}
+.plfoot{flex:0 0 auto}
+.plfoot #plNext{text-align:center;font-size:12.5px;color:var(--tx3);margin-bottom:10px;min-height:16px}
+.plbtns{display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:9px}
+.plbtns .btn{padding:15px 10px;text-align:center;font-size:15px;border-radius:12px}
+@media(max-height:680px){
+  .plring{width:150px;height:150px}
+  .plmid #plTime{font-size:40px}
+  #plName{font-size:20px}
+  #plCues li{padding:6px 10px;font-size:12.5px}
+}
