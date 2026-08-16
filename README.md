@@ -40,6 +40,11 @@ you hit your goal weight.
   is marked *extra* and doesn't move the plan forward.
 - **Build your own sessions** from the full library — pick exercises, set reps or
   seconds, choose rounds and rest — and save them to reuse.
+- **Train by body part.** Tap zones on a front and back body map — chest, shoulders,
+  arms, back, abs, glutes, legs, plus a cardio toggle — pick a length and an intensity,
+  and it assembles a session hitting exactly those areas. If what you picked mostly
+  overlaps what today's planned session trains, it still counts toward the 8 weeks; the
+  app tells you which before you start.
 - **A searchable exercise library** of all 63 movements with their form cues.
 - **Works offline** and installs to your phone's home screen.
 - **Syncs across devices** through your own private Supabase database.

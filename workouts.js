@@ -270,3 +270,43 @@ window.VARIANTS = {
       ]}
   ]
 };
+
+/* ============================================================
+   Body zones per exercise — drives the body-map picker.
+   Zones: chest arms shoulders back abs glutes legs cardio
+   ============================================================ */
+window.ZONES = {
+  boxSquat:["legs","glutes"], squat:["legs","glutes"], squatPause:["legs","glutes"],
+  splitSquat:["legs","glutes"], revLunge:["legs","glutes"], bulgarian:["legs","glutes"],
+  gluteBridge:["glutes"], slGluteBr:["glutes"], wallSit:["legs"], calfRaise:["legs"],
+  stepUp:["legs","glutes"], latLunge:["legs","glutes"], squatPulse:["legs"],
+
+  wallPush:["chest","arms"], inclinePush:["chest","arms"], kneePush:["chest","arms"],
+  pushup:["chest","arms","shoulders"], widePush:["chest","shoulders"],
+  diamondPush:["arms","chest"], pikePush:["shoulders","arms"], chairDip:["arms","chest"],
+
+  tableRow:["back","arms"], towelRow:["back","arms"], superman:["back"],
+  ytw:["back","shoulders"], revSnowAngel:["back","shoulders"],
+
+  plank:["abs"], kneePlank:["abs"], sidePlank:["abs"], deadBug:["abs"],
+  birdDog:["abs","back"], hollowHold:["abs"], legRaise:["abs"], bicycle:["abs"],
+  flutter:["abs"], russianTwist:["abs"], mtnClimber:["abs","cardio"],
+
+  marchFast:["cardio"], stepJack:["cardio"], jumpJack:["cardio"],
+  highKnee:["cardio","legs"], buttKick:["cardio","legs"], skater:["cardio","legs"],
+  fastFeet:["cardio"], shadowBox:["cardio","arms"], squatToStand:["cardio","legs"],
+  burpeeStep:["cardio","chest","legs"], burpee:["cardio","chest","legs"],
+  jumpSquat:["cardio","legs","glutes"]
+};
+
+window.ZONE_LABEL = { chest:"Chest", arms:"Arms", shoulders:"Shoulders", back:"Back",
+                      abs:"Abs & core", glutes:"Glutes", legs:"Legs", cardio:"Cardio" };
+
+/* Which zones each planned session is really training. A body-part session
+   counts toward the plan when it mostly overlaps the planned day's zones. */
+window.TYPE_ZONES = {
+  lower:  ["legs","glutes"],
+  upper:  ["chest","arms","shoulders","back"],
+  cardio: ["cardio"],
+  full:   ["chest","arms","shoulders","back","abs","glutes","legs"]
+};

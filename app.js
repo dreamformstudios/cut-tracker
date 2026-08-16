@@ -1239,8 +1239,11 @@ function renderTrain(){
         '<div style="flex:1"><b>'+esc(w.name)+'</b>'+
         '<div style="font-size:12.5px;color:var(--tx3)">'+w.minutes+' min · '+r0(w.cal)+' cal'+
           (w.plan?'':' · extra')+'</div></div></div>').join("")+
-      '<button class="btn ghost wide" id="startAnother" style="margin-top:6px">Do another session</button></div>';
+      '<div class="grid2" style="margin-top:6px">'+
+        '<button class="btn ghost" id="startAnother">Another session</button>'+
+        '<button class="btn ghost" id="targetPick2">Body parts</button></div></div>';
     $("startAnother").onclick = ()=>{ resetSel(); openVersionPick(); };
+    $("targetPick2").onclick = openTargetPick;
   } else {
     const badge = sess.counts===false
       ? '<span class="pill" style="color:var(--tx3)">extra — doesn\'t move the plan</span>'
@@ -1258,9 +1261,11 @@ function renderTrain(){
         '<span class="pill">~'+sess.estCal+' cal</span>'+badge+
       '</div>'+
       '<button class="btn wide" id="startSession" style="margin-top:14px;font-size:15px">Start workout</button>'+
+      '<button class="btn ghost wide" id="targetPick" style="margin-top:8px">Train specific body parts</button>'+
       '</div>';
     $("startSession").onclick = ()=>openSession(currentSession());
     $("changeSession").onclick = openVersionPick;
+    $("targetPick").onclick = openTargetPick;
   }
 
   /* the exercises in this session, each swappable */
@@ -1462,7 +1467,10 @@ function finishSession(){
 }
 function saveSession(){
   const w = {
-    id: uid(), name: P.sess.name + (P.sess.variantLabel && P.sess.variantLabel!=="Balanced" ? " · "+P.sess.variantLabel : ""),
+    id: uid(),
+    name: P.sess.type==="target"
+      ? P.sess.name
+      : P.sess.name + (P.sess.variantLabel && P.sess.variantLabel!=="Balanced" ? " · "+P.sess.variantLabel : ""),
     type: P.sess.type, plan: P.sess.counts !== false,
     week: P.sess.week, idx: P.sess.idx,
     minutes: P.result.mins, cal: P.result.cal
@@ -1577,7 +1585,9 @@ function openVersionPick(){
           '<div class="info"><div class="n">'+esc(c.name)+'</div><div class="m">'+c.items.length+' exercises · '+(c.rounds||3)+' rounds</div></div>'+
           '<div class="meta">'+s.estMin+' min<br><span>'+s.estCal+' cal</span></div></button>';
       }).join("") : '<div class="empty" style="padding:6px 0">None saved yet.</div>';
-  h += '<button class="btn ghost wide" id="pickBuild" style="margin-top:12px">Build a new session</button>';
+  h += '<div class="grid2" style="margin-top:12px">'+
+       '<button class="btn ghost" id="pickTarget">By body part</button>'+
+       '<button class="btn ghost" id="pickBuild">Build a session</button></div>';
 
   openPick("Choose a workout", h);
 
@@ -1595,6 +1605,7 @@ function openVersionPick(){
     closePick(); renderTrain();
   });
   $("pickBuild").onclick = ()=>openBuilder(null);
+  $("pickTarget").onclick = openTargetPick;
 }
 
 /* ---------- swap one exercise for a same-muscle alternative ---------- */
@@ -1750,10 +1761,220 @@ function openBuilder(existing){
   paintChosen(); paintPool();
 }
 
+
+/* ============================================================
+   TRAIN BY BODY PART — tappable body map, generated session
+   ============================================================ */
+const ZONE_ORDER = ["chest","shoulders","arms","back","abs","glutes","legs"];
+
+function targetCfg(){
+  const P2 = plan();
+  if(!P2.target) P2.target = { zones:["legs","glutes"], minutes:25, level:1 };
+  if(!Array.isArray(P2.target.zones) || !P2.target.zones.length) P2.target.zones = ["legs","glutes"];
+  return P2.target;
+}
+let targetSeed = 0;
+
+/* ---------- the figure ---------- */
+function bodyFigure(view, selected){
+  const on  = z => selected.indexOf(z) >= 0;
+  const fill = z => on(z) ? 'fill="#4ade80" fill-opacity=".82" stroke="#4ade80"' : 'fill="#1c232c" stroke="#2a323d"';
+  const dead = 'fill="#161b22" stroke="#2a323d"';
+  const z = (zone, shapes) =>
+    '<g class="bz'+(on(zone)?" on":"")+'" data-zone="'+zone+'" '+fill(zone)+' stroke-width="1.2">'+shapes+'</g>';
+
+  const head = '<g '+dead+' stroke-width="1.2"><circle cx="55" cy="18" r="12"/>'+
+               '<rect x="49" y="28" width="12" height="9" rx="3.5"/></g>';
+  const arms = z("arms",
+      '<rect x="21" y="55" width="16" height="36" rx="7"/><rect x="73" y="55" width="16" height="36" rx="7"/>'+
+      '<rect x="19" y="92" width="15" height="33" rx="6.5"/><rect x="76" y="92" width="15" height="33" rx="6.5"/>');
+  const shoulders = z("shoulders",
+      '<rect x="26" y="36" width="19" height="17" rx="8"/><rect x="65" y="36" width="19" height="17" rx="8"/>');
+  const legs = z("legs",
+      '<rect x="38" y="112" width="16" height="47" rx="7"/><rect x="56" y="112" width="16" height="47" rx="7"/>'+
+      '<rect x="39" y="161" width="14" height="43" rx="6"/><rect x="57" y="161" width="14" height="43" rx="6"/>');
+
+  let torso;
+  if(view === "front"){
+    torso = z("chest", '<rect x="38" y="39" width="34" height="25" rx="9"/>') +
+            z("abs",   '<rect x="42" y="66" width="26" height="31" rx="8"/>') +
+            '<g '+dead+' stroke-width="1.2"><rect x="40" y="98" width="30" height="13" rx="5"/></g>';
+  } else {
+    torso = z("back",   '<rect x="38" y="39" width="34" height="44" rx="9"/>') +
+            z("glutes", '<rect x="39" y="86" width="32" height="25" rx="10"/>');
+  }
+
+  return '<svg viewBox="0 0 110 220" class="bodysvg">'+head+shoulders+torso+arms+legs+
+         '<text x="55" y="217" text-anchor="middle" fill="#6b7784" font-size="9" '+
+         'style="text-transform:uppercase;letter-spacing:.1em">'+(view==="front"?"Front":"Back")+'</text></svg>';
+}
+
+/* ---------- generate a session for the chosen zones ---------- */
+function buildTargetSession(zones, minutes, level, seed){
+  const VOL  = [ {secs:30, reps:10}, {secs:35, reps:12}, {secs:40, reps:14} ][level];
+  const REST = [55, 45, 35][level];
+  const n    = minutes <= 15 ? 5 : minutes <= 25 ? 6 : 7;
+
+  /* Candidates per zone, ordered so the chosen intensity comes first:
+     easy = gentlest first, hard = toughest first, moderate = middle outward. */
+  const byZone = {};
+  zones.forEach(zn=>{
+    const asc = Object.keys(EX)
+      .filter(id => GROUP[id] !== "mobility" && (ZONES[id]||[]).indexOf(zn) >= 0)
+      .sort((a,b)=> EX[a].met - EX[b].met);
+    if(level === 0)      byZone[zn] = asc;
+    else if(level === 2) byZone[zn] = asc.slice().reverse();
+    else {
+      const mid = Math.floor(asc.length/2), out = [];
+      for(let d=0; out.length < asc.length; d++){
+        if(asc[mid+d] !== undefined) out.push(asc[mid+d]);
+        if(d>0 && asc[mid-d] !== undefined) out.push(asc[mid-d]);
+      }
+      byZone[zn] = out;
+    }
+  });
+
+  /* round-robin across the selected zones, taking the best fit still unused */
+  const chosen = [], used = {}, zi = {};
+  let guard = 0;
+  while(chosen.length < n && guard++ < 200){
+    for(const zn of zones){
+      if(chosen.length >= n) break;
+      const pool = byZone[zn].filter(id => !used[id]);
+      if(!pool.length) continue;
+      zi[zn] = (zi[zn] || 0);
+      const pick = pool[(seed + zi[zn]) % pool.length];
+      zi[zn]++;
+      used[pick] = 1; chosen.push(pick);
+    }
+    if(zones.every(zn => byZone[zn].every(id => used[id]))) break;
+  }
+  if(!chosen.length) return null;
+
+  const main = chosen.map(id => ({
+    id:id, ex:EX[id],
+    secs: EX[id].mode === "time" ? VOL.secs : 0,
+    reps: EX[id].mode === "time" ? 0 : VOL.reps
+  }));
+
+  /* rounds sized to land near the requested length (warm-up + cool-down ≈ 5 min) */
+  const roundSec = main.reduce((a,x)=> a + (x.secs>0 ? x.secs : x.reps*3), 0) + REST*(main.length-1);
+  const overhead = minutes <= 15 ? 200 : 305;
+  const rounds = Math.max(2, Math.min(6, Math.round((minutes*60 - overhead) / roundSec)));
+
+  const short = minutes <= 15;
+  const warm = (short ? WARMUP.slice(0,3) : WARMUP).map(s=>({ id:s.ex[level], ex:EX[s.ex[level]], secs:short?30:s.secs, reps:0 }));
+  const cool = (short ? COOLDOWN.slice(0,2) : COOLDOWN).map(s=>({ id:s.ex[level], ex:EX[s.ex[level]], secs:s.secs, reps:0 }));
+  const steps = [];
+  warm.forEach(x=>steps.push({kind:"work", phase:"Warm-up", x:x, secs:x.secs}));
+  for(let r=1;r<=rounds;r++){
+    main.forEach((x,j)=>{
+      steps.push({kind:"work", phase:"Round "+r+" of "+rounds, x:x, secs:x.secs, reps:x.reps});
+      if(!(r===rounds && j===main.length-1)) steps.push({kind:"rest", secs:REST, next:(j===main.length-1?main[0]:main[j+1])});
+    });
+  }
+  steps.push({kind:"rest", secs:short?20:30, next:cool[0]});
+  cool.forEach(x=>steps.push({kind:"work", phase:"Cool-down", x:x, secs:x.secs}));
+
+  const kg = latestWeight()*0.45359237;
+  let sec=0, cal=0;
+  steps.forEach(s=>{
+    const d = s.kind==="rest" ? s.secs : (s.secs>0 ? s.secs : s.reps*3);
+    sec += d; cal += (s.kind==="rest"?1.5:s.x.ex.met)*kg*(d/3600);
+  });
+
+  const counts = zonesCountTowardPlan(zones, main);
+  const label  = zones.map(z=>ZONE_LABEL[z]).join(" · ");
+  return { type:"target", name:label, focus:["Easy","Moderate","Hard"][level]+" · "+minutes+" min target",
+           zones:zones.slice(), level:level, counts:counts, week:planWeek(), idx:planIdx(),
+           rounds:rounds, rest:REST, main:main, steps:steps,
+           estMin:Math.round(sec/60), estCal:Math.round(cal) };
+}
+
+/* A body-part session counts toward the plan when most of what it trains is
+   what today's planned session trains. */
+function zonesCountTowardPlan(zones, main){
+  const type = WEEK_ORDER[planIdx()];
+  const want = TYPE_ZONES[type] || [];
+  if(!main.length) return false;
+  const hit = main.filter(x => (ZONES[x.id]||[]).some(z => want.indexOf(z) >= 0)).length;
+  if(type === "full"){
+    const distinct = new Set(); main.forEach(x=>(ZONES[x.id]||[]).forEach(z=>distinct.add(z)));
+    return distinct.size >= 3 && hit/main.length >= 0.6;
+  }
+  return hit/main.length >= 0.6;
+}
+
+/* ---------- the picker ---------- */
+function openTargetPick(){
+  const cfg = targetCfg();
+  targetSeed = 0;
+  const paint = ()=>{
+    const sess = buildTargetSession(cfg.zones, cfg.minutes, cfg.level, targetSeed);
+    const type = WEEK_ORDER[planIdx()];
+    $("bodyMaps").innerHTML = bodyFigure("front", cfg.zones) + bodyFigure("back", cfg.zones);
+    $("bodyMaps").querySelectorAll("[data-zone]").forEach(g=>g.onclick=()=>{
+      const zn = g.dataset.zone, at = cfg.zones.indexOf(zn);
+      if(at >= 0){ if(cfg.zones.length > 1) cfg.zones.splice(at,1); }
+      else cfg.zones.push(zn);
+      cfg.zones.sort((a,b)=>ZONE_ORDER.indexOf(a)-ZONE_ORDER.indexOf(b));
+      touchProfile(); paint();
+    });
+
+    $("zoneCardio").className = "chip" + (cfg.zones.indexOf("cardio")>=0 ? " on" : "");
+    $("zoneSummary").textContent = cfg.zones.map(z=>ZONE_LABEL[z]).join(" · ");
+
+    document.querySelectorAll("[data-min]").forEach(b=>b.classList.toggle("on", +b.dataset.min===cfg.minutes));
+    document.querySelectorAll("[data-lvl]").forEach(b=>b.classList.toggle("on", +b.dataset.lvl===cfg.level));
+
+    if(!sess){ $("targetOut").innerHTML='<div class="empty">Pick at least one area.</div>'; return; }
+    $("targetOut").innerHTML =
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+
+        '<span class="pill">'+sess.estMin+' min</span>'+
+        '<span class="pill">'+sess.rounds+' rounds</span>'+
+        '<span class="pill">~'+sess.estCal+' cal</span>'+
+        (sess.counts
+          ? '<span class="pill" style="color:var(--accent);border-color:var(--accent-dim)">counts toward week '+planWeek()+'</span>'
+          : '<span class="pill" style="color:var(--tx3)">extra — today\'s plan is '+esc(SESSIONS[type].name)+'</span>')+
+      '</div>'+
+      sess.main.map(x=>'<div class="entry"><div class="info"><div class="n">'+esc(x.ex.n)+'</div>'+
+        '<div class="m">'+(ZONES[x.id]||[]).map(z=>esc(ZONE_LABEL[z])).join(", ")+'</div></div>'+
+        '<div class="cal">'+(x.secs>0 ? x.secs+"s" : x.reps+"×")+'</div></div>').join("")+
+      '<div class="grid2" style="margin-top:12px">'+
+        '<button class="btn ghost" id="tShuffle">Different exercises</button>'+
+        '<button class="btn" id="tStart">Start workout</button>'+
+      '</div>';
+    $("tShuffle").onclick = ()=>{ targetSeed++; paint(); };
+    $("tStart").onclick = ()=>{ closePick(); openSession(buildTargetSession(cfg.zones, cfg.minutes, cfg.level, targetSeed)); };
+  };
+
+  openPick("Train by body part",
+    '<div id="bodyMaps" class="bodymaps"></div>'+
+    '<div style="text-align:center;margin:2px 0 12px">'+
+      '<div id="zoneSummary" style="font-size:13.5px;color:var(--tx2)"></div>'+
+      '<button class="chip" id="zoneCardio" style="margin-top:9px">＋ Cardio</button>'+
+    '</div>'+
+    '<h2 style="margin:16px 0 8px">Length</h2>'+
+    '<div class="segrow">'+[15,25,35].map(m=>'<button class="seg" data-min="'+m+'">'+m+' min</button>').join("")+'</div>'+
+    '<h2 style="margin:16px 0 8px">Intensity</h2>'+
+    '<div class="segrow">'+["Easy","Moderate","Hard"].map((l,i)=>'<button class="seg" data-lvl="'+i+'">'+l+'</button>').join("")+'</div>'+
+    '<h2 style="margin:18px 0 8px">Your session</h2><div id="targetOut"></div>');
+
+  $("zoneCardio").onclick = ()=>{
+    const at = cfg.zones.indexOf("cardio");
+    if(at >= 0){ if(cfg.zones.length > 1) cfg.zones.splice(at,1); } else cfg.zones.push("cardio");
+    touchProfile(); paint();
+  };
+  document.querySelectorAll("[data-min]").forEach(b=>b.onclick=()=>{ cfg.minutes=+b.dataset.min; touchProfile(); paint(); });
+  document.querySelectorAll("[data-lvl]").forEach(b=>b.onclick=()=>{ cfg.level=+b.dataset.lvl; touchProfile(); paint(); });
+  paint();
+}
+
 // expose a couple of internals for the test harness
 window.__cut = { get DB(){return DB;}, save:save, renderToday:renderToday, renderTrends:renderTrends, renderWeight:renderWeight,
                  renderTrain:renderTrain, buildSession:buildSession, planWeek:planWeek, get P(){return P;},
                  currentSession:currentSession, openVersionPick:openVersionPick, openLibrary:openLibrary, openBuilder:openBuilder,
+                 openTargetPick:openTargetPick, buildTargetSession:buildTargetSession,
                  fillSettings:fillSettings, switchTab:switchTab, openSheet:openSheet, streak:streak,
                  macroTargets:macroTargets, baseBurn:baseBurn, deficitOn:deficitOn };
 })();
